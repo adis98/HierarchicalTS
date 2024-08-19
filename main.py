@@ -75,6 +75,8 @@ class Preprocessor:
         self.cols_to_scale = None
         self.cyclic_encoded_columns = None
         self.encoders = {}
+        self.hierarchical_features_uncyclic = []
+        self.hierarchical_features_cyclic = []
         self.scaler = StandardScaler()
         self.df_orig = self.fetchDataset(name, False)
         self.column_dtypes = self.df_orig.dtypes.to_dict()
@@ -90,6 +92,8 @@ class Preprocessor:
                 df['day'] = df['date_time'].dt.day
                 df['hour'] = df['date_time'].dt.hour
                 df = df.drop(columns=['date_time'])
+                self.hierarchical_features_uncyclic = ['year', 'month', 'day', 'hour']
+
         else:
             dfs = []
             csvs = os.listdir(datasets[name])
@@ -99,6 +103,9 @@ class Preprocessor:
 
         if return_cleaned:
             df_cleaned = self.cleanDataset(name, df)
+            for col in self.hierarchical_features_uncyclic:
+                self.hierarchical_features_cyclic.append(col+'_sine')
+                self.hierarchical_features_cyclic.append(col+'_cos')
             return df_cleaned
 
         else:
@@ -130,6 +137,17 @@ class Preprocessor:
             df = self.encoders[column].encode(df)
         return df
 
+    def cyclicDecode(self, df):
+        df_mod = df
+        for column in self.cyclic_encoded_columns:
+            if column+'_sine' not in df_mod.columns:
+                continue
+            else:
+                df_mod = self.encoders[column].decode(df_mod)
+
+        for col in df_mod.columns:
+            df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
+        return df_mod
     def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded
         df_mod = dataframe
         for column in self.cyclic_encoded_columns:
@@ -161,7 +179,6 @@ if __name__ == "__main__":
     new.extend(temp)
     df_nice = df[new]
     df_nice.to_csv("metro_nice.csv")
-    exit()
     metadata = df[hierarchy]
 
     """INTERLEAVING CODE"""
