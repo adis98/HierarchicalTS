@@ -188,7 +188,8 @@ from main import Preprocessor
 from training import MyDataset, fetchModel, fetchDiffusionConfig
 import numpy as np
 
-from torch import from_numpy, optim, nn, randint, normal, sqrt, device
+from torch import from_numpy, optim, nn, randint, normal, sqrt, device, save
+import os
 from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
@@ -199,7 +200,7 @@ if __name__ == "__main__":
     parser.add_argument('-beta_0', type=float, default=0.0001, help='initial variance schedule')
     parser.add_argument('-beta_T', type=float, default=0.02, help='last variance schedule')
     parser.add_argument('-timesteps', '-T', type=int, default=200, help='training/inference timesteps')
-    parser.add_argument('-hdim', type=int, default=128, help='hidden embedding dimension')
+    parser.add_argument('-hdim', type=int, default=64, help='hidden embedding dimension')
     parser.add_argument('-lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('-batch_size', type=int, help='batch size', default=1024)
     parser.add_argument('-epochs', type=int, default=1000, help='training epochs')
@@ -207,11 +208,11 @@ if __name__ == "__main__":
     parser.add_argument('-window_size', type=int, default=32, help='the size of the training windows')
     parser.add_argument('-stride', type=int, default=1, help='the stride length to shift the training window by')
     parser.add_argument('-num_res_layers', type=int, default=4, help='the number of residual layers')
-    parser.add_argument('-res_channels', type=int, default=128, help='the number of res channels')
-    parser.add_argument('-skip_channels', type=int, default=128, help='the number of skip channels')
-    parser.add_argument('-diff_step_embed_in', type=int, default=64, help='input embedding size diffusion')
-    parser.add_argument('-diff_step_embed_mid', type=int, default=128, help='middle embedding size diffusion')
-    parser.add_argument('-diff_step_embed_out', type=int, default=128, help='output embedding size diffusion')
+    parser.add_argument('-res_channels', type=int, default=64, help='the number of res channels')
+    parser.add_argument('-skip_channels', type=int, default=64, help='the number of skip channels')
+    parser.add_argument('-diff_step_embed_in', type=int, default=32, help='input embedding size diffusion')
+    parser.add_argument('-diff_step_embed_mid', type=int, default=64, help='middle embedding size diffusion')
+    parser.add_argument('-diff_step_embed_out', type=int, default=64, help='output embedding size diffusion')
     parser.add_argument('-s4_lmax', type=int, default=100)
     parser.add_argument('-s4_dstate', type=int, default=64)
     parser.add_argument('-s4_dropout', type=float, default=0.0)
@@ -219,6 +220,7 @@ if __name__ == "__main__":
     parser.add_argument('-s4_layernorm', type=bool, default=True)
     args = parser.parse_args()
     dataset = args.dataset
+    device = device('cuda' if torch.cuda.is_available() else 'cpu')
     preprocessor = Preprocessor(dataset)
     df = preprocessor.df_cleaned
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
@@ -230,12 +232,11 @@ if __name__ == "__main__":
     in_dim = len(df.columns)
     out_dim = len(df.columns) - len(hierarchical_column_indices)
     training_dataset = MyDataset(from_numpy(np.array(training_samples)).float())
-    model = fetchModel(in_dim, out_dim, args)
+    model = fetchModel(in_dim, out_dim, args).to(device)
     diffusion_config = fetchDiffusionConfig(args)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.MSELoss()
     dataloader = DataLoader(training_dataset, batch_size=args.batch_size)
-    device = device('cuda' if torch.cuda.is_available() else 'cpu')
     all_indices = np.arange(len(df.columns))
 
     # Find the indices not in the index_list
@@ -247,19 +248,20 @@ if __name__ == "__main__":
     for epoch in range(args.epochs):
         total_loss = 0.0
         for batch in dataloader:
-            timesteps = randint(diffusion_config['T'], size=(batch.shape[0],))
-            sigmas = normal(0, 1, size=batch.shape)
+            batch = batch.to(device)
+            timesteps = randint(diffusion_config['T'], size=(batch.shape[0],)).to(device)
+            sigmas = normal(0, 1, size=batch.shape).to(device)
             """Forward noising"""
-            alpha_bars = diffusion_config['alpha_bars']
+            alpha_bars = diffusion_config['alpha_bars'].to(device)
             coeff_1 = sqrt(alpha_bars[timesteps]).reshape((len(timesteps), 1, 1))
             coeff_2 = sqrt(1 - alpha_bars[timesteps]).reshape((len(timesteps), 1, 1))
             conditional_mask = np.ones(batch.shape)
             conditional_mask[:, :, non_hier_cols] = 0
-            conditional_mask = from_numpy(conditional_mask).float()
+            conditional_mask = from_numpy(conditional_mask).float().to(device)
             batch_noised = (1 - conditional_mask) * (coeff_1 * batch + coeff_2 * sigmas) + conditional_mask * batch
             batch_noised = batch_noised.to(device)
             timesteps = timesteps.reshape((-1, 1))
-            timesteps = timesteps.to(device)
+            # timesteps = timesteps.to(device)
             sigmas_predicted = model(batch_noised, timesteps)
             optimizer.zero_grad()
             sigmas_permuted = sigmas[:, :, non_hier_cols].permute((0, 2, 1))
@@ -269,3 +271,10 @@ if __name__ == "__main__":
             total_loss += loss
             optimizer.step()
         print(f'epoch: {epoch}, loss: {total_loss}')
+    path = f'saved_models/{args.dataset}/'
+    filename = "model.pth"
+    filepath = os.path.join(path, filename)
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+    torch.save(model.state_dict(), filepath)
