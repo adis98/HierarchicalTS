@@ -181,10 +181,16 @@
 #
 #     train(**train_config)
 import argparse
+
+import torch
+
 from main import Preprocessor
 from training import MyDataset, fetchModel, fetchDiffusionConfig
 import numpy as np
-from torch import from_numpy
+
+from torch import from_numpy, optim, nn, randint, normal, sqrt, device
+from torch.utils.data import DataLoader
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-dataset', '-d', type=str,
@@ -225,4 +231,41 @@ if __name__ == "__main__":
     out_dim = len(df.columns) - len(hierarchical_column_indices)
     training_dataset = MyDataset(from_numpy(np.array(training_samples)).float())
     model = fetchModel(in_dim, out_dim, args)
-    print()
+    diffusion_config = fetchDiffusionConfig(args)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    criterion = nn.MSELoss()
+    dataloader = DataLoader(training_dataset, batch_size=args.batch_size)
+    device = device('cuda' if torch.cuda.is_available() else 'cpu')
+    all_indices = np.arange(len(df.columns))
+
+    # Find the indices not in the index_list
+    remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
+
+    # Convert to an ndarray
+    non_hier_cols = np.array(remaining_indices)
+    """TRAINING"""
+    for epoch in range(args.epochs):
+        total_loss = 0.0
+        for batch in dataloader:
+            timesteps = randint(diffusion_config['T'], size=(batch.shape[0],))
+            sigmas = normal(0, 1, size=batch.shape)
+            """Forward noising"""
+            alpha_bars = diffusion_config['alpha_bars']
+            coeff_1 = sqrt(alpha_bars[timesteps]).reshape((len(timesteps), 1, 1))
+            coeff_2 = sqrt(1 - alpha_bars[timesteps]).reshape((len(timesteps), 1, 1))
+            conditional_mask = np.ones(batch.shape)
+            conditional_mask[:, :, non_hier_cols] = 0
+            conditional_mask = from_numpy(conditional_mask).float()
+            batch_noised = (1 - conditional_mask) * (coeff_1 * batch + coeff_2 * sigmas) + conditional_mask * batch
+            batch_noised = batch_noised.to(device)
+            timesteps = timesteps.reshape((-1, 1))
+            timesteps = timesteps.to(device)
+            sigmas_predicted = model(batch_noised, timesteps)
+            optimizer.zero_grad()
+            sigmas_permuted = sigmas[:, :, non_hier_cols].permute((0, 2, 1))
+            sigmas_permuted = sigmas_permuted.to(device)
+            loss = criterion(sigmas_predicted, sigmas_permuted)
+            loss.backward()
+            total_loss += loss
+            optimizer.step()
+        print(f'epoch: {epoch}, loss: {total_loss}')

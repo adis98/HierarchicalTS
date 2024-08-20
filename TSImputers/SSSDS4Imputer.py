@@ -64,7 +64,7 @@ class Residual_block(nn.Module):
                            bidirectional=s4_bidirectional,
                            layer_norm=s4_layernorm)
 
-        self.cond_conv = Conv(2 * in_channels, 2 * self.res_channels, kernel_size=1)
+        # self.cond_conv = Conv(2 * in_channels, 2 * self.res_channels, kernel_size=1)
 
         self.res_conv = nn.Conv1d(res_channels, res_channels, kernel_size=1)
         self.res_conv = nn.utils.parametrizations.weight_norm(self.res_conv)
@@ -75,7 +75,8 @@ class Residual_block(nn.Module):
         nn.init.kaiming_normal_(self.skip_conv.weight)
 
     def forward(self, input_data):
-        x, cond, diffusion_step_embed = input_data
+        # x, cond, diffusion_step_embed = input_data
+        x, diffusion_step_embed = input_data
         h = x
         B, C, L = x.shape
         assert C == self.res_channels
@@ -87,9 +88,9 @@ class Residual_block(nn.Module):
         h = self.conv_layer(h)
         h = self.S41(h.permute(2, 0, 1)).permute(1, 2, 0)
 
-        assert cond is not None
-        cond = self.cond_conv(cond)
-        h += cond
+        # assert cond is not None
+        # cond = self.cond_conv(cond)
+        # h += cond
 
         h = self.S42(h.permute(2, 0, 1)).permute(1, 2, 0)
 
@@ -132,8 +133,8 @@ class Residual_group(nn.Module):
                                                        s4_layernorm=s4_layernorm))
 
     def forward(self, input_data):
-        noise, conditional, diffusion_steps = input_data
-
+        # noise, conditional, diffusion_steps = input_data
+        noise, diffusion_steps = input_data
         diffusion_step_embed = calc_diffusion_step_embedding(diffusion_steps, self.diffusion_step_embed_dim_in)
         diffusion_step_embed = swish(self.fc_t1(diffusion_step_embed))
         diffusion_step_embed = swish(self.fc_t2(diffusion_step_embed))
@@ -141,7 +142,8 @@ class Residual_group(nn.Module):
         h = noise
         skip = 0
         for n in range(self.num_res_layers):
-            h, skip_n = self.residual_blocks[n]((h, conditional, diffusion_step_embed))
+            # h, skip_n = self.residual_blocks[n]((h, conditional, diffusion_step_embed))
+            h, skip_n = self.residual_blocks[n]((h, diffusion_step_embed))
             skip += skip_n
 
         return skip * math.sqrt(1.0 / self.num_res_layers)
@@ -179,15 +181,19 @@ class SSSDS4Imputer(nn.Module):
                                         nn.ReLU(),
                                         ZeroConv1d(skip_channels, out_channels))
 
-    def forward(self, input_data):
-        noise, conditional, mask, diffusion_steps = input_data
+    def forward(self, input_data, timesteps):
+        # noise, conditional, mask, diffusion_steps = input_data
+        noised_data, diffusion_steps = input_data.permute((0, 2, 1)), timesteps
 
-        conditional = conditional * mask
-        conditional = torch.cat([conditional, mask.float()], dim=1)
-
-        x = noise
+        # conditional = conditional * mask
+        # conditional = torch.cat([conditional, mask.float()], dim=1)
+        #
+        # x = noise
+        # x = self.init_conv(x)
+        # x = self.residual_layer((x, conditional, diffusion_steps))
+        # y = self.final_conv(x)
+        x = noised_data
         x = self.init_conv(x)
-        x = self.residual_layer((x, conditional, diffusion_steps))
+        x = self.residual_layer((x, diffusion_steps))
         y = self.final_conv(x)
-
         return y
