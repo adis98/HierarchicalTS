@@ -25,44 +25,46 @@ class CyclicEncoder:
         self.angles_to_cat = dict(zip(self.angles, self.categories))
 
     def encode(self, df):
-        df[self.column_name + "_sine"] = df[self.column_name].replace(self.mapper_sine).astype(float)
-        df[self.column_name + "_cos"] = df[self.column_name].replace(self.mapper_cosine).astype(float)
-        df_new = df.drop(columns=[self.column_name])
-        return df_new
+        df_copy = df.copy()
+        df_copy[self.column_name + "_sine"] = df_copy[self.column_name].replace(self.mapper_sine).astype(float)
+        df_copy[self.column_name + "_cos"] = df_copy[self.column_name].replace(self.mapper_cosine).astype(float)
+        df_copy.drop(columns=[self.column_name], inplace=True)
+        return df_copy
 
     def decode(self, df):
-        df[self.column_name + "_sine"] = np.clip(df[self.column_name + "_sine"], -1, 1)
-        df[self.column_name + "_cos"] = np.clip(df[self.column_name + "_cos"], -1, 1)
-        df[self.column_name + "_angle"] = np.nan
-        condition1 = np.logical_and(df[self.column_name + "_sine"] >= 0, df[self.column_name + "_cos"] > 0)
-        condition2 = np.logical_and(df[self.column_name + "_sine"] > 0, df[self.column_name + "_cos"] <= 0)
-        condition3 = np.logical_and(df[self.column_name + "_sine"] <= 0, df[self.column_name + "_cos"] < 0)
-        condition4 = np.logical_and(df[self.column_name + "_sine"] < 0, df[self.column_name + "_cos"] >= 0)
+        df_copy = df.copy()
+        df_copy[self.column_name + "_sine"] = np.clip(df_copy[self.column_name + "_sine"], -1, 1)
+        df_copy[self.column_name + "_cos"] = np.clip(df_copy[self.column_name + "_cos"], -1, 1)
+        df_copy[self.column_name + "_angle"] = np.nan
+        condition1 = np.logical_and(df_copy[self.column_name + "_sine"] >= 0, df_copy[self.column_name + "_cos"] > 0)
+        condition2 = np.logical_and(df_copy[self.column_name + "_sine"] > 0, df_copy[self.column_name + "_cos"] <= 0)
+        condition3 = np.logical_and(df_copy[self.column_name + "_sine"] <= 0, df_copy[self.column_name + "_cos"] < 0)
+        condition4 = np.logical_and(df_copy[self.column_name + "_sine"] < 0, df_copy[self.column_name + "_cos"] >= 0)
 
-        df.loc[condition1, self.column_name + "_angle"] = (np.arcsin(df[self.column_name + "_sine"].values)[
+        df_copy.loc[condition1, self.column_name + "_angle"] = (np.arcsin(df_copy[self.column_name + "_sine"].values)[
                                                                condition1.values] +
-                                                           np.arccos(df[self.column_name + "_cos"].values)[
+                                                           np.arccos(df_copy[self.column_name + "_cos"].values)[
                                                                condition1.values]) / 2
 
-        df.loc[condition2, self.column_name + "_angle"] = (np.arccos(df[self.column_name + "_cos"].values)[
+        df_copy.loc[condition2, self.column_name + "_angle"] = (np.arccos(df_copy[self.column_name + "_cos"].values)[
                                                                condition2.values] +
-                                                           np.pi - np.arcsin(df[self.column_name + "_sine"].values)[
+                                                           np.pi - np.arcsin(df_copy[self.column_name + "_sine"].values)[
                                                                condition2.values]) / 2
-        df.loc[condition3, self.column_name + "_angle"] = (2 * np.pi - np.arccos(df[self.column_name + "_cos"].values)[
+        df_copy.loc[condition3, self.column_name + "_angle"] = (2 * np.pi - np.arccos(df_copy[self.column_name + "_cos"].values)[
             condition3.values] +
                                                            np.pi - np.arcsin(
-                    df[self.column_name + "_sine"].values)[condition3.values]) / 2
-        df.loc[condition4, self.column_name + "_angle"] = (4 * np.pi - np.arccos(df[self.column_name + "_cos"].values)[
+                    df_copy[self.column_name + "_sine"].values)[condition3.values]) / 2
+        df_copy.loc[condition4, self.column_name + "_angle"] = (4 * np.pi - np.arccos(df_copy[self.column_name + "_cos"].values)[
             condition4.values] + np.arcsin(
-            df[self.column_name + "_sine"].values)[condition4.values]) / 2
+            df_copy[self.column_name + "_sine"].values)[condition4.values]) / 2
 
-        df[self.column_name + "_angle"] = df[self.column_name + "_angle"] % (2 * np.pi)
-        df[self.column_name + '_threshold_angle'] = df[self.column_name + "_angle"].apply(
+        df_copy[self.column_name + "_angle"] = df_copy[self.column_name + "_angle"] % (2 * np.pi)
+        df_copy[self.column_name + '_threshold_angle'] = df_copy[self.column_name + "_angle"].apply(
             lambda x: self.nearest_threshold(x, self.angles))
-        df[self.column_name] = df[self.column_name + '_threshold_angle'].replace(self.angles_to_cat)
-        df_new = df.drop(columns=[self.column_name + '_sine', self.column_name + '_cos', self.column_name + '_angle',
-                                  self.column_name + '_threshold_angle'])
-        return df_new
+        df_copy[self.column_name] = df_copy[self.column_name + '_threshold_angle'].replace(self.angles_to_cat)
+        df_copy.drop(columns=[self.column_name + '_sine', self.column_name + '_cos', self.column_name + '_angle',
+                                  self.column_name + '_threshold_angle'], inplace=True)
+        return df_copy
 
     @staticmethod
     def nearest_threshold(x, thresholds):
@@ -70,7 +72,6 @@ class CyclicEncoder:
 
 
 class Preprocessor:
-
     def __init__(self, name):
         self.cols_to_scale = None
         self.cyclic_encoded_columns = None
@@ -91,7 +92,7 @@ class Preprocessor:
                 df['month'] = df['date_time'].dt.month
                 df['day'] = df['date_time'].dt.day
                 df['hour'] = df['date_time'].dt.hour
-                df = df.drop(columns=['date_time'])
+                df.drop(columns=['date_time'], inplace=True)
                 self.hierarchical_features_uncyclic = ['year', 'month', 'day', 'hour']
 
         else:
@@ -100,12 +101,13 @@ class Preprocessor:
             for file in csvs:
                 dfs.append(pd.read_csv(datasets[name] + "/" + file))
             df = pd.concat(dfs)
+            df.drop(columns=['No'], inplace=True)  # redundant
 
         if return_cleaned:
             df_cleaned = self.cleanDataset(name, df)
             for col in self.hierarchical_features_uncyclic:
-                self.hierarchical_features_cyclic.append(col+'_sine')
-                self.hierarchical_features_cyclic.append(col+'_cos')
+                self.hierarchical_features_cyclic.append(col + '_sine')
+                self.hierarchical_features_cyclic.append(col + '_cos')
             return df_cleaned
 
         else:
@@ -113,18 +115,18 @@ class Preprocessor:
 
     def cleanDataset(self, name, df):
         """Beijing Air Quality has some missing values for the sensor data"""
+        df_clean = df.copy()
         if name == "BeijingAirQuality":
-            df.drop(columns=['No'], inplace=True)  # redundant
-            for column in df.columns:
-                if df[column].dtype != 'object':
-                    df[column] = df[column].interpolate()
+            for column in df_clean.columns:
+                if df_clean[column].dtype != 'object':
+                    df_clean[column] = df_clean[column].interpolate()
             self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'wd', 'station']
 
         elif name == 'MetroTraffic':
             self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
                                            'weather_description']
 
-        df_cyclic = self.cyclicEncode(df)  # returns the dataframe with cyclic encoding applied
+        df_cyclic = self.cyclicEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 
         self.cols_to_scale = [col for col in df_cyclic.columns if
                               col not in self.cyclic_encoded_columns and '_sine' not in col and '_cos' not in col]
@@ -132,24 +134,26 @@ class Preprocessor:
         return df_cyclic
 
     def cyclicEncode(self, df):
+        df_copy = df.copy()
         for column in self.cyclic_encoded_columns:
-            self.encoders[column] = CyclicEncoder(column, df)
-            df = self.encoders[column].encode(df)
-        return df
+            self.encoders[column] = CyclicEncoder(column, df_copy)
+            df_copy = self.encoders[column].encode(df_copy)
+        return df_copy
 
     def cyclicDecode(self, df):
-        df_mod = df
+        df_copy = df.copy()
         for column in self.cyclic_encoded_columns:
-            if column+'_sine' not in df_mod.columns:
+            if column + '_sine' not in df_copy.columns:
                 continue
             else:
-                df_mod = self.encoders[column].decode(df_mod)
+                df_copy = self.encoders[column].decode(df_copy)
 
-        for col in df_mod.columns:
-            df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
-        return df_mod
+        for col in df_copy.columns:
+            df_copy[col] = df_copy[col].astype(self.column_dtypes[col])
+        return df_copy
+
     def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded
-        df_mod = dataframe
+        df_mod = dataframe.copy()
         for column in self.cyclic_encoded_columns:
             df_mod = self.encoders[column].decode(df_mod)
         if rescale:
@@ -185,7 +189,7 @@ if __name__ == "__main__":
     row_index = 0
     memory_row = None
     items_skipped = 0
-    used = [0]*len(metadata)
+    used = [0] * len(metadata)
     interleaved_meta = pd.DataFrame(columns=metadata.columns).astype(metadata.dtypes)
     while len(interleaved_meta) < len(metadata):
         if used[row_index] == 1:

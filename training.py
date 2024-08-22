@@ -30,17 +30,6 @@ def fetchModel(in_features, out_features, args):
     elif args.backbone.lower() == 'transformer':
         model = TransformerDiffusionBackbone(in_dim=in_features, t_dim=1, h_dim=args.hdim, n_layers=args.layers)
     elif args.backbone.lower() == 's4':
-        # model_config = {'in_channels': in_features, 'out_channels': out_features,
-        #                 'res_channels': args.res_channels,
-        #                 'skip_channels': args.skip_channels,
-        #                 "diffusion_step_embed_dim_in": args.diff_step_embed_in,
-        #                 "diffusion_step_embed_dim_mid": args.diff_step_embed_mid,
-        #                 "diffusion_step_embed_dim_out": args.diff_step_embed_out,
-        #                 "s4_lmax": args.s4_lmax,
-        #                 "s4_d_state": args.s4_dstate,
-        #                 "s4_dropout": args.s4_dropout,
-        #                 "s4_bidirectional": args.s4_bidirectional,
-        #                 "s4_layernorm": args.s4_layernorm}
         model = SSSDS4Imputer(in_features, args.res_channels, args.skip_channels,
                               out_features, args.num_res_layers, args.diff_step_embed_in,
                               args.diff_step_embed_mid, args.diff_step_embed_out,
