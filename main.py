@@ -18,6 +18,17 @@ class CyclicEncoder:
     def __init__(self, name, df):
         self.column_name = name
         self.categories = df[name].unique()
+        """
+        counts = df[name].value_counts(dropna=False)
+
+        # Step 2: Calculate the proportional angles (in radians)
+        total_counts = counts.sum()
+        angles = (counts / total_counts) * 2 * np.pi  # Proportional angles in radians
+
+        # Step 3: Calculate the cumulative angle positions
+        cumulative_angles = angles.cumsum() - (angles / 2)
+        """
+
         self.angles = np.array(list(range(len(self.categories)))) * (2 * np.pi) / len(self.categories)
         self.mapper = dict(zip(self.categories, self.angles))
         self.mapper_sine = dict(zip(self.categories, np.sin(self.angles)))

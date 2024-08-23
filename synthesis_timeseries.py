@@ -48,7 +48,7 @@ if __name__ == "__main__":
     train_df_with_hierarchy = preprocessor.cyclicDecode(df)
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
-    constraints = {'year': 2012, 'month': 10, 'day': 2}  # determines which rows need synthetic data
+    constraints = {'year': 2012, 'month': 10, 'day':2}  # determines which rows need synthetic data
     rows_to_synth = pd.Series([True] * len(test_df_with_hierarchy))
     # Iterate over the dictionary to create masks for each column
     for col, value in constraints.items():
@@ -100,6 +100,11 @@ if __name__ == "__main__":
                 beta_t = diffusion_config['betas'][step].to(device)
                 sampled_noise = torch.normal(0, 1, test_batch.shape).to(device)
                 cached_denoising = torch.sqrt(alpha_bar_t) * test_batch + torch.sqrt(1 - alpha_bar_t) * sampled_noise
+                mask_expanded = np.zeros_like(test_batch, dtype=bool)
+                for channel in non_hier_cols:
+                    mask_expanded[:, :, channel] = mask_batch
+                x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
+                x[~mask_expanded] = cached_denoising[~mask_expanded]
                 epsilon_pred = model(x, times)
                 epsilon_pred = epsilon_pred.permute((0, 2, 1))
                 if step > 0:
@@ -107,15 +112,22 @@ if __name__ == "__main__":
                                                                                              size=epsilon_pred.shape)
                 else:
                     vari = 0.0
-                normal_denoising = (x[:, :, non_hier_cols] - (
+
+                normal_denoising = torch.normal(0, 1, test_batch.shape).to(device)
+                normal_denoising[:, :, non_hier_cols] = (x[:, :, non_hier_cols] - (
                         (beta_t / torch.sqrt(1 - alpha_bar_t)) * epsilon_pred)) / torch.sqrt(alpha_t)
-                normal_denoising += vari
+                normal_denoising[:, :, non_hier_cols] += vari
                 masked_binary = mask_batch.int()
-                x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
-                x[~mask_batch][:, non_hier_cols] = cached_denoising[~mask_batch][:, non_hier_cols]
-                x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
+                # x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
+                x[mask_expanded] = normal_denoising[mask_expanded]
+                x[~mask_expanded] = test_batch[~mask_expanded]
+                # if step == 0:
+                #     x[~mask_batch][:, non_hier_cols] = test_batch[~mask_batch][:, non_hier_cols]
+                #     k = x[~mask_batch][:, non_hier_cols]
+                #     print()
 
     synth = x.view(-1, test_samples[0].shape[1])
+    df_synth_alt = pd.DataFrame(np.array(test_samples).reshape((-1, synth.shape[1])), columns=df.columns)
     df_synth = pd.DataFrame(synth.cpu().numpy(), columns=df.columns)
     real_df_reconverted = preprocessor.decode(real_df, rescale=True).reset_index(drop=True)
     decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
