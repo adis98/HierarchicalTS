@@ -48,7 +48,7 @@ if __name__ == "__main__":
     train_df_with_hierarchy = preprocessor.cyclicDecode(df)
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
-    constraints = {'year': 2012, 'month': 10, 'day':2}  # determines which rows need synthetic data
+    constraints = {'year': 2012, 'month': 10}  # determines which rows need synthetic data
     rows_to_synth = pd.Series([True] * len(test_df_with_hierarchy))
     # Iterate over the dictionary to create masks for each column
     for col, value in constraints.items():
@@ -144,4 +144,4 @@ if __name__ == "__main__":
     if not os.path.exists(path):
         os.makedirs(path)
     real_df_reconverted.to_csv(path + 'real.csv')
-    synth_df_reconverted_selected.to_csv(path + 'synth.csv')
+    synth_df_reconverted_selected.to_csv(path + 'synth_divide.csv')
