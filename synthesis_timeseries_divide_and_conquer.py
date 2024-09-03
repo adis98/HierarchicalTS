@@ -63,6 +63,7 @@ if __name__ == "__main__":
         column_mask = metadata[col] == value
         rows_to_synth &= column_mask
 
+    rows_to_synth_orig = rows_to_synth
     real_exclusive = rows_to_synth & (metadata['_merge'] == 'both')  # rows in the real data that need re-synthesis
     rows_to_synth |= metadata['_merge'] == 'left_only'
     real_df = metadata.loc[real_exclusive]
@@ -121,6 +122,7 @@ if __name__ == "__main__":
     model.eval()
 
     with torch.no_grad():
+        synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
         for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
             x = create_pipelined_noise(test_batch, args).to(device)
             print(f'batch: {idx} of {len(test_dataloader)}')
@@ -157,19 +159,24 @@ if __name__ == "__main__":
                 # x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
                 x[mask_expanded] = normal_denoising[mask_expanded]
                 x[~mask_expanded] = test_batch[~mask_expanded]
-                rolled_x = x.roll(1)
+                rolled_x = x.roll(1, 0)
                 x[1:, : args.window_size - 1, :] = rolled_x[1:, 1: args.window_size, :]
                 # if step == 0:
                 #     x[~mask_batch][:, non_hier_cols] = test_batch[~mask_batch][:, non_hier_cols]
                 #     k = x[~mask_batch][:, non_hier_cols]
-                #     print()
 
-    synth = x.view(-1, test_samples[0].shape[1])
-    df_synth_alt = pd.DataFrame(np.array(test_samples).reshape((-1, synth.shape[1])), columns=df.columns)
-    df_synth = pd.DataFrame(synth.cpu().numpy(), columns=df.columns)
-    real_df_reconverted = preprocessor.decode(real_df, rescale=True).reset_index(drop=True)
+            first_sample = x[0]
+            last_timesteps = x[1:, -1, :]
+            if idx == 0:
+                generated = torch.cat((first_sample, last_timesteps), dim=0)
+            else:
+                generated = x[:, -1, :]
+            synth_tensor = torch.cat((synth_tensor, generated), dim=0)
+
+    df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
+    real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
     decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
-    synth_df_reconverted = preprocessor.decode(df_synth, rescale=True)
+    synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
 
     rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
     for col, value in constraints.items():
