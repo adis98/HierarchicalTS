@@ -16,8 +16,7 @@ def decimal_places(series):
 
 def create_pipelined_noise(test_batch, args):
     sampled = torch.normal(0, 1, (test_batch.shape[0] + test_batch.shape[1] - 1, test_batch.shape[2]))
-    sampled_list = [sampled.roll(-i)[:args.window_size] for i in range(test_batch.shape[0])]
-    sampled_noise = from_numpy(np.array(sampled_list))
+    sampled_noise = sampled.unfold(0, args.window_size, 1).transpose(1, 2)
     return sampled_noise
 
 
@@ -75,17 +74,34 @@ if __name__ == "__main__":
     """Approach 1: Divide and conquer"""
     test_samples = []
     mask_samples = []
-    for i in range(0, len(df_synth) - args.window_size + 1, 1):
-        window = df_synth.iloc[i:i + args.window_size].values
-        mask_window = rows_to_synth.iloc[i:i + args.window_size].values
-        if any(mask_window):
-            test_samples.append(window)
-            mask_samples.append(mask_window)
+    d_vals = df_synth.values
+    m_vals = rows_to_synth.values
+
+    d_vals_tensor = from_numpy(d_vals)
+    m_vals_tensor = from_numpy(m_vals)
+    windows = d_vals_tensor.unfold(0, args.window_size, 1).transpose(1, 2)
+    masks = m_vals_tensor.unfold(0, args.window_size, 1)
+    condition = torch.any(masks, dim=1)
+    windows = windows[condition]
+    masks = masks[condition]
+    # windows = [np.roll(d_vals, -i)[:args.window_size] for i in range(len(d_vals))]
+    # m_windows = [np.roll(m_vals, -i)[:args.window_size] for i in range(len(m_vals))]
+    # for i in range(len(windows)):
+    #     if any(m_windows[i]):
+    #         test_samples.append(windows[i])
+    #         mask_samples.append(m_windows[i])
+
+    # for i in range(0, len(df_synth) - args.window_size + 1, 1):
+    #     window = df_synth.iloc[i:i + args.window_size].values
+    #     mask_window = rows_to_synth.iloc[i:i + args.window_size].values
+    #     if any(mask_window):
+    #         test_samples.append(window)
+    #         mask_samples.append(mask_window)
     #
     in_dim = len(df_synth.columns)
     out_dim = len(df_synth.columns) - len(hierarchical_column_indices)
-    test_dataset = MyDataset(from_numpy(np.array(test_samples)).float())
-    mask_dataset = MyDataset(from_numpy(np.array(mask_samples)))
+    test_dataset = MyDataset(windows.float())
+    mask_dataset = MyDataset(masks)
     model = fetchModel(in_dim, out_dim, args).to(device)
     diffusion_config = fetchDiffusionConfig(args)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size)
