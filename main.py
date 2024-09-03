@@ -53,28 +53,31 @@ class CyclicEncoder:
         condition4 = np.logical_and(df_copy[self.column_name + "_sine"] < 0, df_copy[self.column_name + "_cos"] >= 0)
 
         df_copy.loc[condition1, self.column_name + "_angle"] = (np.arcsin(df_copy[self.column_name + "_sine"].values)[
-                                                               condition1.values] +
-                                                           np.arccos(df_copy[self.column_name + "_cos"].values)[
-                                                               condition1.values]) / 2
+                                                                    condition1.values] +
+                                                                np.arccos(df_copy[self.column_name + "_cos"].values)[
+                                                                    condition1.values]) / 2
 
         df_copy.loc[condition2, self.column_name + "_angle"] = (np.arccos(df_copy[self.column_name + "_cos"].values)[
-                                                               condition2.values] +
-                                                           np.pi - np.arcsin(df_copy[self.column_name + "_sine"].values)[
-                                                               condition2.values]) / 2
-        df_copy.loc[condition3, self.column_name + "_angle"] = (2 * np.pi - np.arccos(df_copy[self.column_name + "_cos"].values)[
-            condition3.values] +
-                                                           np.pi - np.arcsin(
+                                                                    condition2.values] +
+                                                                np.pi -
+                                                                np.arcsin(df_copy[self.column_name + "_sine"].values)[
+                                                                    condition2.values]) / 2
+        df_copy.loc[condition3, self.column_name + "_angle"] = (2 * np.pi -
+                                                                np.arccos(df_copy[self.column_name + "_cos"].values)[
+                                                                    condition3.values] +
+                                                                np.pi - np.arcsin(
                     df_copy[self.column_name + "_sine"].values)[condition3.values]) / 2
-        df_copy.loc[condition4, self.column_name + "_angle"] = (4 * np.pi - np.arccos(df_copy[self.column_name + "_cos"].values)[
-            condition4.values] + np.arcsin(
-            df_copy[self.column_name + "_sine"].values)[condition4.values]) / 2
+        df_copy.loc[condition4, self.column_name + "_angle"] = (4 * np.pi -
+                                                                np.arccos(df_copy[self.column_name + "_cos"].values)[
+                                                                    condition4.values] + np.arcsin(
+                    df_copy[self.column_name + "_sine"].values)[condition4.values]) / 2
 
         df_copy[self.column_name + "_angle"] = df_copy[self.column_name + "_angle"] % (2 * np.pi)
         df_copy[self.column_name + '_threshold_angle'] = df_copy[self.column_name + "_angle"].apply(
             lambda x: self.nearest_threshold(x, self.angles))
         df_copy[self.column_name] = df_copy[self.column_name + '_threshold_angle'].replace(self.angles_to_cat)
         df_copy.drop(columns=[self.column_name + '_sine', self.column_name + '_cos', self.column_name + '_angle',
-                                  self.column_name + '_threshold_angle'], inplace=True)
+                              self.column_name + '_threshold_angle'], inplace=True)
         return df_copy
 
     @staticmethod
@@ -173,6 +176,16 @@ class Preprocessor:
         for col in df_mod.columns:
             df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
         return df_mod
+
+    def scale(self, df):
+        df_scaled = df.copy()
+        df_scaled[self.cols_to_scale] = self.scaler.transform(df_scaled[self.cols_to_scale])
+        return df_scaled
+
+    def rescale(self, df):
+        df_rescaled = df.copy()
+        df_rescaled[self.cols_to_scale] = self.scaler.inverse_transform(df_rescaled[self.cols_to_scale])
+        return df_rescaled
 
 
 if __name__ == "__main__":

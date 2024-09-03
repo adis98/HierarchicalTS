@@ -4,6 +4,7 @@ import math
 import numpy as np
 from functools import reduce
 
+
 def num_groups_heuristic(n: int) -> int:
     """Find the divisor of n closest to sqrt(n)"""
     step = 2 if n % 2 else 1

@@ -7,6 +7,7 @@ from torch import from_numpy, optim, nn, randint, normal, sqrt, device, save
 from torch.utils.data import DataLoader
 import pandas as pd
 import os
+from metasynth_bruteforce import metaSynth
 
 
 def decimal_places(series):
@@ -48,14 +49,18 @@ if __name__ == "__main__":
     train_df_with_hierarchy = preprocessor.cyclicDecode(df)
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
-    constraints = {'month': 10, 'day': 2}  # determines which rows need synthetic data
-    rows_to_synth = pd.Series([True] * len(test_df_with_hierarchy))
+    constraints = {'hour': 19}  # determines which rows need synthetic data
+    metadata = metaSynth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
+    rows_to_synth = pd.Series([True] * len(metadata))
     # Iterate over the dictionary to create masks for each column
     for col, value in constraints.items():
-        column_mask = test_df_with_hierarchy[col] == value
+        column_mask = (metadata[col] == value)
         rows_to_synth &= column_mask
 
-    real_df = df.loc[rows_to_synth]
+    real_exclusive = rows_to_synth & (metadata['_merge'] == 'both')  # rows which are present in the real data but need to be newly synthesized
+    rows_to_synth |= metadata['_merge'] == 'left_only'
+    real_df = metadata.loc[real_exclusive]
+    real_df.drop(columns=['_merge'], inplace=True)
     """Approach 2: Autoregressive"""
     # test_samples = []
     # mask_samples = []
@@ -70,7 +75,9 @@ if __name__ == "__main__":
     remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
     #
     # # Convert to an ndarray
-    synthetic_df = df.copy()
+    synthetic_df = metadata.copy()
+    synthetic_df = synthetic_df.drop(columns=['_merge'])
+    synthetic_df = preprocessor.cyclicEncode(synthetic_df)
     synthetic_mask = rows_to_synth.copy()
     non_hier_cols = np.array(remaining_indices)
     saved_params = torch.load(f'saved_models/{args.dataset}/model.pth', map_location=device)

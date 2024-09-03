@@ -7,10 +7,18 @@ from torch import from_numpy, optim, nn, randint, normal, sqrt, device, save
 from torch.utils.data import DataLoader
 import pandas as pd
 import os
+from metasynth_bruteforce import metaSynth
 
 
 def decimal_places(series):
     return series.apply(lambda x: len(str(x).split('.')[1]) if '.' in str(x) else 0).max()
+
+
+def create_pipelined_noise(test_batch, args):
+    sampled = torch.normal(0, 1, (test_batch.shape[0] + test_batch.shape[1] - 1, test_batch.shape[2]))
+    sampled_list = [sampled.roll(-i)[:args.window_size] for i in range(test_batch.shape[0])]
+    sampled_noise = from_numpy(np.array(sampled_list))
+    return sampled_noise
 
 
 if __name__ == "__main__":
@@ -49,32 +57,40 @@ if __name__ == "__main__":
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     constraints = {'year': 2012, 'month': 10}  # determines which rows need synthetic data
-    rows_to_synth = pd.Series([True] * len(test_df_with_hierarchy))
+    metadata = metaSynth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
+    rows_to_synth = pd.Series([True] * len(metadata))
     # Iterate over the dictionary to create masks for each column
     for col, value in constraints.items():
-        column_mask = test_df_with_hierarchy[col] == value
+        column_mask = metadata[col] == value
         rows_to_synth &= column_mask
 
-    real_df = df.loc[rows_to_synth]
+    real_exclusive = rows_to_synth & (metadata['_merge'] == 'both')  # rows in the real data that need re-synthesis
+    rows_to_synth |= metadata['_merge'] == 'left_only'
+    real_df = metadata.loc[real_exclusive]
+    real_df = real_df.drop(columns=['_merge'])
+
+    df_synth = metadata.copy()
+    df_synth = preprocessor.cyclicEncode(df_synth)
+    df_synth = df_synth.drop(columns=['_merge'])
     """Approach 1: Divide and conquer"""
     test_samples = []
     mask_samples = []
-    for i in range(0, len(df) - args.window_size + 1, args.window_size):
-        window = df.iloc[i:i + args.window_size].values
+    for i in range(0, len(df_synth) - args.window_size + 1, 1):
+        window = df_synth.iloc[i:i + args.window_size].values
         mask_window = rows_to_synth.iloc[i:i + args.window_size].values
         if any(mask_window):
             test_samples.append(window)
             mask_samples.append(mask_window)
     #
-    in_dim = len(df.columns)
-    out_dim = len(df.columns) - len(hierarchical_column_indices)
+    in_dim = len(df_synth.columns)
+    out_dim = len(df_synth.columns) - len(hierarchical_column_indices)
     test_dataset = MyDataset(from_numpy(np.array(test_samples)).float())
     mask_dataset = MyDataset(from_numpy(np.array(mask_samples)))
     model = fetchModel(in_dim, out_dim, args).to(device)
     diffusion_config = fetchDiffusionConfig(args)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size)
     mask_dataloader = DataLoader(mask_dataset, batch_size=args.batch_size)
-    all_indices = np.arange(len(df.columns))
+    all_indices = np.arange(len(df_synth.columns))
     #
     # # Find the indices not in the index_list
     remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
@@ -90,15 +106,16 @@ if __name__ == "__main__":
 
     with torch.no_grad():
         for (test_batch, mask_batch) in zip(test_dataloader, mask_dataloader):
-            x = torch.normal(0, 1, test_batch.shape).to(device)
+            x = create_pipelined_noise(test_batch, args).to(device)
             for step in range(diffusion_config['T'] - 1, -1, -1):
                 print(f"backward step: {step}")
-                times = torch.full(size=(test_dataset.inputs.shape[0], 1), fill_value=step).to(device)
+                times = torch.full(size=(test_batch.shape[0], 1), fill_value=step).to(device)
                 alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
                 alpha_bar_t_1 = diffusion_config['alpha_bars'][step - 1].to(device)
                 alpha_t = diffusion_config['alphas'][step].to(device)
                 beta_t = diffusion_config['betas'][step].to(device)
-                sampled_noise = torch.normal(0, 1, test_batch.shape).to(device)
+
+                sampled_noise = create_pipelined_noise(test_batch, args).to(device)
                 cached_denoising = torch.sqrt(alpha_bar_t) * test_batch + torch.sqrt(1 - alpha_bar_t) * sampled_noise
                 mask_expanded = np.zeros_like(test_batch, dtype=bool)
                 for channel in non_hier_cols:
@@ -113,7 +130,7 @@ if __name__ == "__main__":
                 else:
                     vari = 0.0
 
-                normal_denoising = torch.normal(0, 1, test_batch.shape).to(device)
+                normal_denoising = create_pipelined_noise(test_batch, args).to(device)
                 normal_denoising[:, :, non_hier_cols] = (x[:, :, non_hier_cols] - (
                         (beta_t / torch.sqrt(1 - alpha_bar_t)) * epsilon_pred)) / torch.sqrt(alpha_t)
                 normal_denoising[:, :, non_hier_cols] += vari
@@ -121,6 +138,8 @@ if __name__ == "__main__":
                 # x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
                 x[mask_expanded] = normal_denoising[mask_expanded]
                 x[~mask_expanded] = test_batch[~mask_expanded]
+                rolled_x = x.roll(1)
+                x[1:, : args.window_size - 1, :] = rolled_x[1:, 1: args.window_size, :]
                 # if step == 0:
                 #     x[~mask_batch][:, non_hier_cols] = test_batch[~mask_batch][:, non_hier_cols]
                 #     k = x[~mask_batch][:, non_hier_cols]
@@ -143,5 +162,5 @@ if __name__ == "__main__":
     path = f'generated/{args.dataset}/{str(constraints)}/'
     if not os.path.exists(path):
         os.makedirs(path)
-    real_df_reconverted.to_csv(path + 'real.csv')
-    synth_df_reconverted_selected.to_csv(path + 'synth_divide.csv')
+    real_df_reconverted.to_csv(f'{path}real.csv')
+    synth_df_reconverted_selected.to_csv(f'{path}synth_dnq_stride_{args.stride}.csv')
