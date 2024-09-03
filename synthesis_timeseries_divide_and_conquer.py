@@ -121,9 +121,12 @@ if __name__ == "__main__":
     model.eval()
 
     with torch.no_grad():
-        for (test_batch, mask_batch) in zip(test_dataloader, mask_dataloader):
+        for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
             x = create_pipelined_noise(test_batch, args).to(device)
+            print(f'batch: {idx} of {len(test_dataloader)}')
             for step in range(diffusion_config['T'] - 1, -1, -1):
+                test_batch = test_batch.to(device)
+                mask_batch = mask_batch.to(device)
                 print(f"backward step: {step}")
                 times = torch.full(size=(test_batch.shape[0], 1), fill_value=step).to(device)
                 alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
@@ -133,7 +136,7 @@ if __name__ == "__main__":
 
                 sampled_noise = create_pipelined_noise(test_batch, args).to(device)
                 cached_denoising = torch.sqrt(alpha_bar_t) * test_batch + torch.sqrt(1 - alpha_bar_t) * sampled_noise
-                mask_expanded = np.zeros_like(test_batch, dtype=bool)
+                mask_expanded = torch.zeros_like(test_batch, dtype=bool)
                 for channel in non_hier_cols:
                     mask_expanded[:, :, channel] = mask_batch
                 x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
@@ -142,7 +145,7 @@ if __name__ == "__main__":
                 epsilon_pred = epsilon_pred.permute((0, 2, 1))
                 if step > 0:
                     vari = beta_t * ((1 - alpha_bar_t_1) / (1 - alpha_bar_t)) * torch.normal(0, 1,
-                                                                                             size=epsilon_pred.shape)
+                                                                                             size=epsilon_pred.shape).to(device)
                 else:
                     vari = 0.0
 
