@@ -18,8 +18,11 @@ class CyclicEncoder:
     def __init__(self, name, df, propCycEnc):
         self.column_name = name
         self.categories = df[name].unique()
-        self.pce = propCycEnc
-        self.counts = df[name].value_counts()
+        counts = df[name].value_counts(dropna=False)
+        total_counts = counts.sum()
+        angles = (counts/total_counts) * 2 * np.pi
+        cumulative_angles = angles.cumsum() - (angles / 2)
+        temp = counts.index.values
         """
         counts = df[name].value_counts(dropna=False)
 
@@ -30,8 +33,11 @@ class CyclicEncoder:
         # Step 3: Calculate the cumulative angle positions
         cumulative_angles = angles.cumsum() - (angles / 2)
         """
-
-        self.angles = np.array(list(range(len(self.categories)))) * (2 * np.pi) / len(self.categories)
+        self.categories = temp
+        if propCycEnc:
+            self.angles = cumulative_angles
+        else:
+            self.angles = np.array(list(range(len(self.categories)))) * (2 * np.pi) / len(self.categories)
         self.mapper = dict(zip(self.categories, self.angles))
         self.mapper_sine = dict(zip(self.categories, np.sin(self.angles)))
         self.mapper_cosine = dict(zip(self.categories, np.cos(self.angles)))
