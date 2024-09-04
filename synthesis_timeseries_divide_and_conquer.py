@@ -55,7 +55,7 @@ if __name__ == "__main__":
     train_df_with_hierarchy = preprocessor.cyclicDecode(df)
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
-    constraints = {'year': 2012, 'month': 10}  # determines which rows need synthetic data
+    constraints = {'year': 2013}  # determines which rows need synthetic data
     metadata = metaSynth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
     rows_to_synth = pd.Series([True] * len(metadata))
     # Iterate over the dictionary to create masks for each column
