@@ -18,6 +18,8 @@ class CyclicEncoder:
     def __init__(self, name, df):
         self.column_name = name
         self.categories = df[name].unique()
+        if name == "weather_main":
+            print()
         """
         counts = df[name].value_counts(dropna=False)
 
@@ -150,7 +152,8 @@ class Preprocessor:
     def cyclicEncode(self, df):
         df_copy = df.copy()
         for column in self.cyclic_encoded_columns:
-            self.encoders[column] = CyclicEncoder(column, df_copy)
+            if column not in self.encoders:
+                self.encoders[column] = CyclicEncoder(column, df_copy)
             df_copy = self.encoders[column].encode(df_copy)
         return df_copy
 

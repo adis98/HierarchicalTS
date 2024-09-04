@@ -189,4 +189,5 @@ if __name__ == "__main__":
     if not os.path.exists(path):
         os.makedirs(path)
     real_df_reconverted.to_csv(f'{path}real.csv')
+    synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
     synth_df_reconverted_selected.to_csv(f'{path}synth_dnq_stride_{args.stride}.csv')
