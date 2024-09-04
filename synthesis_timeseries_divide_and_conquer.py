@@ -61,7 +61,7 @@ if __name__ == "__main__":
         decimal_accuracy[key] = decimal_accuracy_orig[key]
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
-    constraints = {'year': 2013}  # determines which rows need synthetic data
+    constraints = {'year': 2012, 'month': 10}  # determines which rows need synthetic data
     metadata = metaSynth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
     rows_to_synth = pd.Series([True] * len(metadata))
     # Iterate over the dictionary to create masks for each column
@@ -200,4 +200,7 @@ if __name__ == "__main__":
         os.makedirs(path)
     real_df_reconverted.to_csv(f'{path}real.csv')
     synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
-    synth_df_reconverted_selected.to_csv(f'{path}synth_dnq_stride_{args.stride}.csv')
+    if args.propCycEnc:
+        synth_df_reconverted_selected.to_csv(f'{path}synth_dnq_stride_{args.stride}_prop.csv')
+    else:
+        synth_df_reconverted_selected.to_csv(f'{path}synth_dnq_stride_{args.stride}.csv')
