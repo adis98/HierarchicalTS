@@ -18,8 +18,6 @@ class CyclicEncoder:
     def __init__(self, name, df):
         self.column_name = name
         self.categories = df[name].unique()
-        if name == "weather_main":
-            print()
         """
         counts = df[name].value_counts(dropna=False)
 
