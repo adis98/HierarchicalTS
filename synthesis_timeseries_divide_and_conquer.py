@@ -120,7 +120,10 @@ if __name__ == "__main__":
     #
     # # Convert to an ndarray
     non_hier_cols = np.array(remaining_indices)
-    saved_params = torch.load(f'saved_models/{args.dataset}/model.pth', map_location=device)
+    if args.propCycEnc:
+        saved_params = torch.load(f'saved_models/{args.dataset}/model_prop.pth', map_location=device)
+    else:
+        saved_params = torch.load(f'saved_models/{args.dataset}/model.pth', map_location=device)
     with torch.no_grad():
         for name, param in model.named_parameters():
             param.copy_(saved_params[name])
