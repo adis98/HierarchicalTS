@@ -53,6 +53,7 @@ if __name__ == "__main__":
     df = preprocessor.df_cleaned
 
     train_df_with_hierarchy = preprocessor.cyclicDecode(df)
+    decimal_accuracy = train_df_with_hierarchy.apply(decimal_places).to_dict()
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     constraints = {'year': 2013}  # determines which rows need synthetic data
@@ -175,7 +176,8 @@ if __name__ == "__main__":
 
     df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
     real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
-    decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
+    real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
+    # decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
     synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
 
     rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))

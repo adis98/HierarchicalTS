@@ -26,13 +26,20 @@ if __name__ == "__main__":
     args = parser.parse_args()
     dataset = args.dataset
     device = device('cuda' if cuda.is_available() else 'cpu')
-    constraints = {'day': 13}
+    constraints = {'year': 2013}
     path = f'generated/{args.dataset}/{str(constraints)}/'
 
-    synthetic_df = pd.read_csv(f'{path}synth_autoregressive_stride_{args.stride}.csv').drop(columns=['Unnamed: 0'])
+    synthetic_df = pd.read_csv(f'{path}synth_dnq_stride_{args.stride}.csv').drop(columns=['Unnamed: 0'])
     real_df = pd.read_csv(f'{path}real.csv').drop(columns=['Unnamed: 0'])
 
+    # filtered_real = real_df[real_df['day'] == 7].reset_index()
+    # filtered_synth = synthetic_df[synthetic_df['day'] == 7].reset_index()
+    # plt.plot(filtered_real['traffic_volume'], c='red')
+    # plt.plot(filtered_synth['traffic_volume'], c='green')
+    # plt.show()
+    # exit()
     preprocessor = Preprocessor(dataset)
+    real_df = real_df[preprocessor.df_orig.columns]
     real_df_cyclic_normalized = preprocessor.scale(preprocessor.cyclicEncode(real_df))
     synthetic_df_cyclic_normalized = preprocessor.scale(preprocessor.cyclicEncode(synthetic_df))
     horizon_forecast_split = 0.8  # 80% of a window's data is used for the horizon and 20% is used as the forecast per window
@@ -47,7 +54,7 @@ if __name__ == "__main__":
     all_indices = np.arange(len(synthetic_df_cyclic_normalized.columns))
     remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
     non_hier_cols = np.array(remaining_indices)
-    forecaster = Transformer(feature_size=train_dataset.inputs.shape[2], out_size=len(non_hier_cols))
+    forecaster = Transformer(feature_size=train_dataset.inputs.shape[2], out_size=train_dataset.inputs.shape[2])
 
     """TRAINING"""
     optimizer = optim.Adam(forecaster.parameters(), lr=args.lr)
@@ -59,12 +66,14 @@ if __name__ == "__main__":
         total_loss = 0.0
         for batch in dataloader_train:
             loss_mask = zeros_like(batch)
-            loss_mask[:, horizon_length:, non_hier_cols] = 1.0
+            loss_mask[:, horizon_length:, 0] = 1.0
             optimizer.zero_grad()
             prediction = forecaster(batch, device=device)
             boolean_loss_mask = loss_mask.bool()
-            actual = batch[:, horizon_length:, non_hier_cols]
-            pred = prediction[:, horizon_length:, :]
+            # actual = batch[:, horizon_length:, non_hier_cols]
+            actual = batch[boolean_loss_mask]
+            pred = prediction[boolean_loss_mask]
+            # pred = prediction[:, horizon_length:, :]
             loss = criterion(pred, actual)
             loss.backward()
             optimizer.step()
@@ -79,7 +88,7 @@ if __name__ == "__main__":
         for batch in dataloader_test:
             prediction = forecaster(batch, device)
             loss_mask = zeros_like(batch)
-            loss_mask[:, horizon_length:, non_hier_cols] = 1.0
+            loss_mask[:, horizon_length:, 0] = 1.0
             boolean_loss_mask = loss_mask.bool()
             actual = batch[:, horizon_length:, non_hier_cols]
             pred = prediction[:, horizon_length:, :]
