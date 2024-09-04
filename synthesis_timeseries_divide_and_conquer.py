@@ -53,7 +53,11 @@ if __name__ == "__main__":
     df = preprocessor.df_cleaned
 
     train_df_with_hierarchy = preprocessor.cyclicDecode(df)
-    decimal_accuracy = train_df_with_hierarchy.apply(decimal_places).to_dict()
+    decimal_accuracy_orig = preprocessor.df_orig.apply(decimal_places).to_dict()
+    decimal_accuracy_processed = train_df_with_hierarchy.apply(decimal_places).to_dict()
+    decimal_accuracy = {}
+    for key in decimal_accuracy_processed.keys():
+        decimal_accuracy[key] = decimal_accuracy_orig[key]
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     constraints = {'year': 2013}  # determines which rows need synthetic data

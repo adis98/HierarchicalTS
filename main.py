@@ -15,9 +15,11 @@ datasets = {"WebTraffic": "WebTrafficLAcity/lacity.org-website-traffic.csv",
 
 class CyclicEncoder:
 
-    def __init__(self, name, df):
+    def __init__(self, name, df, propCycEnc):
         self.column_name = name
         self.categories = df[name].unique()
+        self.pce = propCycEnc
+        self.counts = df[name].value_counts()
         """
         counts = df[name].value_counts(dropna=False)
 
@@ -86,7 +88,8 @@ class CyclicEncoder:
 
 
 class Preprocessor:
-    def __init__(self, name):
+    def __init__(self, name, propCycEnc):
+        self.pce = propCycEnc
         self.cols_to_scale = None
         self.cyclic_encoded_columns = None
         self.encoders = {}
@@ -151,7 +154,7 @@ class Preprocessor:
         df_copy = df.copy()
         for column in self.cyclic_encoded_columns:
             if column not in self.encoders:
-                self.encoders[column] = CyclicEncoder(column, df_copy)
+                self.encoders[column] = CyclicEncoder(column, df_copy, self.pce)
             df_copy = self.encoders[column].encode(df_copy)
         return df_copy
 
@@ -162,9 +165,8 @@ class Preprocessor:
                 continue
             else:
                 df_copy = self.encoders[column].decode(df_copy)
+                df_copy[column] = df_copy[column].astype(self.column_dtypes[column])
 
-        for col in df_copy.columns:
-            df_copy[col] = df_copy[col].astype(self.column_dtypes[col])
         return df_copy
 
     def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded

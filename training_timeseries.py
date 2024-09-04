@@ -218,10 +218,11 @@ if __name__ == "__main__":
     parser.add_argument('-s4_dropout', type=float, default=0.0)
     parser.add_argument('-s4_bidirectional', type=bool, default=True)
     parser.add_argument('-s4_layernorm', type=bool, default=True)
+    parser.add_argument('-propCycEnc', type=bool, default=False)
     args = parser.parse_args()
     dataset = args.dataset
     device = device('cuda' if torch.cuda.is_available() else 'cpu')
-    preprocessor = Preprocessor(dataset)
+    preprocessor = Preprocessor(dataset, args.propCycEnc)
     df = preprocessor.df_cleaned
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     training_samples = []
