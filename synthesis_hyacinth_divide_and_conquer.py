@@ -1,13 +1,13 @@
 import argparse
 import torch
-from main import Preprocessor
-from training import MyDataset, fetchModel, fetchDiffusionConfig
+from data_utils import Preprocessor
+from training_utils import MyDataset, fetchModel, fetchDiffusionConfig
 import numpy as np
 from torch import from_numpy, optim, nn, randint, normal, sqrt, device, save
 from torch.utils.data import DataLoader
 import pandas as pd
 import os
-from metasynth_bruteforce import metaSynth
+from metasynth import metaSynthHyacinth
 
 
 def decimal_places(series):
@@ -60,9 +60,8 @@ if __name__ == "__main__":
     for key in decimal_accuracy_processed.keys():
         decimal_accuracy[key] = decimal_accuracy_orig[key]
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
-    hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
-    constraints = {'year': 2012, 'month': 10}  # determines which rows need synthetic data
-    metadata = metaSynth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
+    constraints = {'year': 2013}  # determines which rows need synthetic data
+    metadata = metaSynthHyacinth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
     rows_to_synth = pd.Series([True] * len(metadata))
     # Iterate over the dictionary to create masks for each column
     for col, value in constraints.items():
@@ -91,20 +90,7 @@ if __name__ == "__main__":
     condition = torch.any(masks, dim=1)
     windows = windows[condition]
     masks = masks[condition]
-    # windows = [np.roll(d_vals, -i)[:args.window_size] for i in range(len(d_vals))]
-    # m_windows = [np.roll(m_vals, -i)[:args.window_size] for i in range(len(m_vals))]
-    # for i in range(len(windows)):
-    #     if any(m_windows[i]):
-    #         test_samples.append(windows[i])
-    #         mask_samples.append(m_windows[i])
-
-    # for i in range(0, len(df_synth) - args.window_size + 1, 1):
-    #     window = df_synth.iloc[i:i + args.window_size].values
-    #     mask_window = rows_to_synth.iloc[i:i + args.window_size].values
-    #     if any(mask_window):
-    #         test_samples.append(window)
-    #         mask_samples.append(mask_window)
-    #
+    hierarchical_column_indices = df_synth.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     in_dim = len(df_synth.columns)
     out_dim = len(df_synth.columns) - len(hierarchical_column_indices)
     test_dataset = MyDataset(windows.float())
@@ -156,7 +142,8 @@ if __name__ == "__main__":
                 epsilon_pred = epsilon_pred.permute((0, 2, 1))
                 if step > 0:
                     vari = beta_t * ((1 - alpha_bar_t_1) / (1 - alpha_bar_t)) * torch.normal(0, 1,
-                                                                                             size=epsilon_pred.shape).to(device)
+                                                                                             size=epsilon_pred.shape).to(
+                        device)
                 else:
                     vari = 0.0
 

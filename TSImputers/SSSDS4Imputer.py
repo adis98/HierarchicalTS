@@ -197,3 +197,57 @@ class SSSDS4Imputer(nn.Module):
         x = self.residual_layer((x, diffusion_steps))
         y = self.final_conv(x)
         return y
+
+
+class SSSDS4Weaver(nn.Module):
+    def __init__(self, in_channels, res_channels, skip_channels, out_channels,
+                 num_res_layers,
+                 diffusion_step_embed_dim_in,
+                 diffusion_step_embed_dim_mid,
+                 diffusion_step_embed_dim_out,
+                 s4_lmax,
+                 s4_d_state,
+                 s4_dropout,
+                 s4_bidirectional,
+                 s4_layernorm):
+        super(SSSDS4Weaver, self).__init__()
+
+        self.fc_embed = nn.Linear(in_features=in_channels, out_features=32)
+        self.attn = nn.MultiheadAttention(embed_dim=32, batch_first=True, num_heads=2)
+
+        self.init_conv = nn.Sequential(Conv(32, res_channels, kernel_size=1), nn.ReLU())
+
+        self.residual_layer = Residual_group(res_channels=res_channels,
+                                             skip_channels=skip_channels,
+                                             num_res_layers=num_res_layers,
+                                             diffusion_step_embed_dim_in=diffusion_step_embed_dim_in,
+                                             diffusion_step_embed_dim_mid=diffusion_step_embed_dim_mid,
+                                             diffusion_step_embed_dim_out=diffusion_step_embed_dim_out,
+                                             in_channels=in_channels,
+                                             s4_lmax=s4_lmax,
+                                             s4_d_state=s4_d_state,
+                                             s4_dropout=s4_dropout,
+                                             s4_bidirectional=s4_bidirectional,
+                                             s4_layernorm=s4_layernorm)
+
+        self.final_conv = nn.Sequential(Conv(skip_channels, skip_channels, kernel_size=1),
+                                        nn.ReLU(),
+                                        ZeroConv1d(skip_channels, out_channels))
+
+    def forward(self, input_data, timesteps):
+        # noise, conditional, mask, diffusion_steps = input_data
+        x = self.fc_embed(input_data)
+        x, diffusion_steps = x.permute((0, 2, 1)), timesteps
+
+        # conditional = conditional * mask
+        # conditional = torch.cat([conditional, mask.float()], dim=1)
+        #
+        # x = noise
+        # x = self.init_conv(x)
+        # x = self.residual_layer((x, conditional, diffusion_steps))
+        # y = self.final_conv(x)
+        x, _ = self.attn(x, x, x)
+        x = self.init_conv(x)
+        x = self.residual_layer((x, diffusion_steps))
+        y = self.final_conv(x)
+        return y

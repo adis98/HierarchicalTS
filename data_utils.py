@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
 pd.set_option('future.no_silent_downcasting', True)
 
@@ -197,113 +197,120 @@ class Preprocessor:
         return df_rescaled
 
 
-if __name__ == "__main__":
-    preprocessor = Preprocessor("MetroTraffic")
-    # df = fetchDataset("MetroTraffic", True)
-    # df = preprocessor.decode(dataframe=preprocessor.df_cleaned, rescale=True)
+class PreprocessorOneHot:
+    def __init__(self, name):
+        self.cols_to_scale = None
+        self.encoders = {}
+        self.scaler = StandardScaler()
+        self.hierarchical_features = []
+        self.hierarchical_features_onehot = []
+        self.onehot_encoded_columns = []
+        self.onehot_column_names = []
+        self.df_orig = self.fetchDataset(name, False)
+        self.column_dtypes = self.df_orig.dtypes.to_dict()
+        self.df_cleaned = self.fetchDataset(name, True)
 
-    # columns = list(df.columns)
-    # df = preprocessor.df_cleaned
-    df = preprocessor.df_orig
-    hierarchy = ['year', 'month', 'day', 'hour']
-    temp = []
-    # hierarchy = ['year_sine', 'year_cos', 'month_sine', 'month_cos', 'day_sine', 'day_cos', 'hour_sine', 'hour_cos']
-    for col in df.columns:
-        if col not in hierarchy:
-            temp.append(col)
-    new = []
-    new.extend(hierarchy)
-    new.extend(temp)
-    df_nice = df[new]
-    df_nice.to_csv("metro_nice.csv")
-    metadata = df[hierarchy]
+    def fetchDataset(self, name, return_cleaned):
+        if name != "BeijingAirQuality":
+            df = pd.read_csv(datasets[name])
+            if name == "MetroTraffic":
+                df['date_time'] = pd.to_datetime(df['date_time'])
+                df['year'] = df['date_time'].dt.year
+                df['month'] = df['date_time'].dt.month
+                df['day'] = df['date_time'].dt.day
+                df['hour'] = df['date_time'].dt.hour
+                df.drop(columns=['date_time'], inplace=True)
+                self.hierarchical_features = ['year', 'month', 'day', 'hour']
 
-    """INTERLEAVING CODE"""
-    row_index = 0
-    memory_row = None
-    items_skipped = 0
-    used = [0] * len(metadata)
-    interleaved_meta = pd.DataFrame(columns=metadata.columns).astype(metadata.dtypes)
-    while len(interleaved_meta) < len(metadata):
-        if used[row_index] == 1:
-            row_index = (row_index + 1) % len(metadata)
-            continue
         else:
-            row = metadata.iloc[[row_index]]
-            if memory_row is not None:
-                if (row.values == memory_row.values).any():
-                    pass
-                else:
-                    memory_row = row
-                    used[row_index] = 1
-                    interleaved_meta = pd.concat([interleaved_meta, row], ignore_index=False)
-                    print(len(interleaved_meta))
-                    if len(interleaved_meta) > 200:
-                        break
+            dfs = []
+            csvs = os.listdir(datasets[name])
+            for file in csvs:
+                dfs.append(pd.read_csv(datasets[name] + "/" + file))
+            df = pd.concat(dfs)
+            df.drop(columns=['No'], inplace=True)  # redundant
+
+        if return_cleaned:
+            df_cleaned = self.cleanDataset(name, df)
+            return df_cleaned
+
+        else:
+            return df
+
+    def cleanDataset(self, name, df):
+        """Beijing Air Quality has some missing values for the sensor data"""
+        df_clean = df.copy()
+        if name == "BeijingAirQuality":
+            for column in df_clean.columns:
+                if df_clean[column].dtype != 'object':
+                    df_clean[column] = df_clean[column].interpolate()
+            self.onehot_encoded_columns = ['year', 'month', 'day', 'hour', 'wd', 'station']
+
+        elif name == 'MetroTraffic':
+            self.onehot_encoded_columns = ['year', 'holiday', 'weather_main',
+                                           'weather_description']
+
+        df_onehot = self.onehotEncode(df_clean)  # returns the dataframe with cyclic encoding applied
+
+        for feature in self.hierarchical_features:
+            if feature in self.onehot_encoded_columns:
+                self.hierarchical_features_onehot.extend(self.encoders[feature])
             else:
-                memory_row = row
-                used[row_index] = 1
-                interleaved_meta = pd.concat([interleaved_meta, row], ignore_index=True)
-            row_index = (row_index + 1) % len(metadata)
+                self.hierarchical_features_onehot.append(feature)
 
-    """PLOTTING CODE"""
-    # # Number of columns
-    # n_cols = len(metadata.columns)
-    #
-    # # Create a figure and a set of subplots
-    # fig, axes = plt.subplots(n_cols, 1, figsize=(8, 2 * n_cols))
-    #
-    # # Iterate over each column and plot it
-    # for i, col in enumerate(metadata.columns):
-    #     axes[i].plot(metadata[col])
-    #     axes[i].set_title(col)
-    #
-    # # Adjust layout to prevent overlapping
-    # plt.tight_layout()
-    #
-    # # Display the plot
-    # # plt.show()
-    # plt.savefig('cyclic_encoding.png')
+        self.cols_to_scale = [col for col in df_clean.columns if
+                              col not in self.onehot_encoded_columns]
+        df_onehot[self.cols_to_scale] = self.scaler.fit_transform(df[self.cols_to_scale])
+        return df_onehot
 
-    """INTERLEAVED PLOTTING"""
-    # # Number of columns
-    # n_cols = len(interleaved_meta.columns)
-    #
-    # # Create a figure and a set of subplots
-    # fig, axes = plt.subplots(n_cols, 1, figsize=(8, 2 * n_cols))
-    #
-    # # Iterate over each column and plot it
-    # for i, col in enumerate(interleaved_meta.columns):
-    #     axes[i].plot(interleaved_meta[col])
-    #     axes[i].set_title(col)
-    #
-    # # Adjust layout to prevent overlapping
-    # plt.tight_layout()
-    #
-    # # Display the plot
-    # # plt.show()
-    # plt.savefig('interleaved_no_cyclic_encoding.png')
+    def onehotEncode(self, df):
+        df_copy = df.copy()
+        df_copy = pd.get_dummies(df_copy, columns=self.onehot_encoded_columns, dummy_na=True)
+        for col in self.onehot_encoded_columns:
+            if not df[col].isna().any():
+                name = f'{col}_nan'
+                df_copy = df_copy.drop(columns=[name])
+        if len(self.onehot_column_names) == 0:  # if it's the first time
+            self.onehot_column_names = [name for name in df_copy.columns if name not in df.columns]
+            for column in self.onehot_encoded_columns:
+                names = []
+                for ohcs in self.onehot_column_names:
+                    if column in ohcs:
+                        names.append(ohcs)
+                self.encoders[column] = names
+        return df_copy
 
-    """INTERLEAVING WITH CYCLIC ENCODING"""
-    hier_cyc = ['year_sine', 'year_cos', 'month_sine', 'month_cos', 'day_sine', 'day_cos', 'hour_sine', 'hour_cos']
-    meta_cyc = preprocessor.df_cleaned[hier_cyc]
-    ordering = interleaved_meta.index
-    interleaved_meta_cyc = pd.DataFrame(meta_cyc, index=ordering)
-    interleaved_meta_cyc = interleaved_meta_cyc.reset_index(drop=True)
-    n_cols = len(interleaved_meta_cyc.columns)
+    def onehotDecode(self, df):
+        df_copy = df.copy()
+        for column in self.encoders.keys():
+            df_select = df_copy[self.encoders[column]]
+            sep_str = f'{column}_'
+            category = pd.from_dummies(df_select, sep=sep_str)
+            if self.column_dtypes[column] != 'object':
+                category = category.apply(pd.to_numeric)
+            df_copy[column] = category.astype(self.column_dtypes[column])
+            df_copy = df_copy.drop(columns=self.encoders[column])
 
-    # Create a figure and a set of subplots
-    fig, axes = plt.subplots(n_cols, 1, figsize=(8, 2 * n_cols))
+        return df_copy
 
-    # Iterate over each column and plot it
-    for i, col in enumerate(interleaved_meta_cyc.columns):
-        axes[i].plot(interleaved_meta_cyc[col])
-        axes[i].set_title(col)
+    def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded
+        df_mod = dataframe.copy()
+        df_mod = self.onehotDecode(df_mod)
+        if rescale:
+            df_mod[self.cols_to_scale] = self.scaler.inverse_transform(df_mod[self.cols_to_scale])
 
-    # Adjust layout to prevent overlapping
-    plt.tight_layout()
+        for col in df_mod.columns:
+            df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
+        return df_mod
 
-    # Display the plot
-    # plt.show()
-    plt.savefig('interleaved_cyclic_encoding.png')
-    print()
+    def scale(self, df):
+        df_scaled = df.copy()
+        df_scaled[self.cols_to_scale] = self.scaler.transform(df_scaled[self.cols_to_scale])
+        return df_scaled
+
+    def rescale(self, df):
+        df_rescaled = df.copy()
+        df_rescaled[self.cols_to_scale] = self.scaler.inverse_transform(df_rescaled[self.cols_to_scale])
+        return df_rescaled
+
+

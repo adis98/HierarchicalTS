@@ -1,13 +1,13 @@
 import argparse
 import torch
-from main import Preprocessor
-from training import MyDataset, fetchModel, fetchDiffusionConfig
+from data_utils import Preprocessor
+from training_utils import MyDataset, fetchModel, fetchDiffusionConfig
 import numpy as np
 from torch import from_numpy, optim, nn, randint, normal, sqrt, device, save
 from torch.utils.data import DataLoader
 import pandas as pd
 import os
-from metasynth_bruteforce import metaSynth
+from metasynth import metaSynthHyacinth
 
 
 def decimal_places(series):
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     test_df_with_hierarchy = train_df_with_hierarchy.copy()
     hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     constraints = {'hour': 19}  # determines which rows need synthetic data
-    metadata = metaSynth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
+    metadata = metaSynthHyacinth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
     rows_to_synth = pd.Series([True] * len(metadata))
     # Iterate over the dictionary to create masks for each column
     for col, value in constraints.items():

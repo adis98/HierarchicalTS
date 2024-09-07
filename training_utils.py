@@ -1,7 +1,7 @@
 import pandas as pd
 import torch
 
-from main import datasets, CyclicEncoder, Preprocessor
+from data_utils import datasets, CyclicEncoder, Preprocessor
 from copy import deepcopy
 import argparse
 import numpy as np
@@ -9,7 +9,7 @@ from diffusion_backbones import BiLinearDiffusionBackbone, TransformerDiffusionB
 import torch.optim as optim
 from torch import nn, from_numpy
 from torch.utils.data import Dataset, DataLoader
-from TSImputers.SSSDS4Imputer import SSSDS4Imputer
+from TSImputers.SSSDS4Imputer import SSSDS4Imputer, SSSDS4Weaver
 
 
 class MyDataset(Dataset):
@@ -35,6 +35,12 @@ def fetchModel(in_features, out_features, args):
                               args.diff_step_embed_mid, args.diff_step_embed_out,
                               args.s4_lmax, args.s4_dstate, args.s4_dropout,
                               args.s4_bidirectional, args.s4_layernorm)
+    elif args.backbone.lower() == 's4weaver':
+        model = SSSDS4Weaver(in_features, args.res_channels, args.skip_channels, out_features,
+                             args.num_res_layers, args.diff_step_embed_in,
+                             args.diff_step_embed_mid, args.diff_step_embed_out,
+                             args.s4_lmax, args.s4_dstate, args.s4_dropout,
+                             args.s4_bidirectional, args.s4_layernorm)
     return model
 
 
@@ -115,7 +121,7 @@ if __name__ == "__main__":
             difference_coeff = diffusion_config['betas'][step] / torch.sqrt(1 - diffusion_config['alpha_bars'][step])
             denom = diffusion_config['alphas'][step]
             sigma = diffusion_config['betas'][step] * (1 - diffusion_config['alpha_bars'][step - 1]) / (
-                        1 - diffusion_config['alpha_bars'][step])
+                    1 - diffusion_config['alpha_bars'][step])
             sigma = torch.sqrt(sigma) * torch.normal(0, 1, training_data.shape)
             sigma = sigma.to(device)
             difference_coeff = difference_coeff.to(device)
