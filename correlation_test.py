@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument('-propCycEnc', type=bool, default=False)
     args = parser.parse_args()
     dataset = args.dataset
-    constraints = {'month': 11, 'day':12, 'hour': 2}
+    constraints = {'year': 2013}
     path = f'generated/{args.dataset}/{str(constraints)}/'
 
     if args.propCycEnc:
