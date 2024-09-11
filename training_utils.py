@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch import nn, from_numpy
 from torch.utils.data import Dataset, DataLoader
 from TSImputers.SSSDS4Imputer import SSSDS4Imputer, SSSDS4Weaver
+from TSImputers.TimeGAN import TimeGAN
 
 
 class MyDataset(Dataset):
@@ -41,6 +42,9 @@ def fetchModel(in_features, out_features, args):
                              args.diff_step_embed_mid, args.diff_step_embed_out,
                              args.s4_lmax, args.s4_dstate, args.s4_dropout,
                              args.s4_bidirectional, args.s4_layernorm)
+
+    elif args.backbone.lower() == 'timegan':
+        model = TimeGAN(args, None)
     return model
 
 
