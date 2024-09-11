@@ -44,14 +44,14 @@ class Encoder(nn.Module):
         self.rnn = nn.GRU(input_size=opt.in_dim, hidden_size=opt.hidden_dim, num_layers=opt.num_layer)
         # self.norm = nn.BatchNorm1d(opt.hidden_dim)
         self.fc = nn.Linear(opt.hidden_dim, opt.hidden_dim)
-        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
         self.apply(_weights_init)
 
-    def forward(self, input, sigmoid=True):
+    def forward(self, input, tanh=True):
         e_outputs, _ = self.rnn(input)
         H = self.fc(e_outputs)
-        if sigmoid:
-            H = self.sigmoid(H)
+        if tanh:
+            H = self.tanh(H)
         return H
 
 
@@ -72,14 +72,14 @@ class Recovery(nn.Module):
 
         #  self.norm = nn.BatchNorm1d(opt.in_dim)
         self.fc = nn.Linear(opt.in_dim, opt.in_dim)
-        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
         self.apply(_weights_init)
 
-    def forward(self, input, sigmoid=True):
+    def forward(self, input, tanh=True):
         r_outputs, _ = self.rnn(input)
         X_tilde = self.fc(r_outputs)
-        if sigmoid:
-            X_tilde = self.sigmoid(X_tilde)
+        if tanh:
+            X_tilde = self.tanh(X_tilde)
         return X_tilde
 
 
@@ -166,14 +166,14 @@ class Discriminator(nn.Module):
         return Y_hat
 
 
-class BaseModel():
+class BaseModel(nn.Module):
     """ Base Model for timegan
     """
 
-    def __init__(self, opt, ori_data):
+    def __init__(self, opt, ori_data, *args, **kwargs):
         # Seed for deterministic behavior
         # self.seed(opt.manualseed)
-        pass
+        super().__init__(*args, **kwargs)
         # Initalize variables.
         self.opt = opt
         # self.ori_data, self.min_val, self.max_val = NormMinMax(ori_data)
@@ -183,45 +183,45 @@ class BaseModel():
         # self.tst_dir = os.path.join(self.opt.outf, self.opt.name, 'test')
         # self.device = torch.device("cuda:0" if self.opt.device != 'cpu' else "cpu")
 
-    def seed(self, seed_value):
-        """ Seed
-
-        Arguments:
-            seed_value {int} -- [description]
-        """
-        # Check if seed is default value
-        if seed_value == -1:
-            return
-
-        # Otherwise seed all functionality
-        import random
-        random.seed(seed_value)
-        torch.manual_seed(seed_value)
-        torch.cuda.manual_seed_all(seed_value)
-        np.random.seed(seed_value)
-        torch.backends.cudnn.deterministic = True
-
-    def save_weights(self, epoch):
-        """Save net weights for the current epoch.
-
-        Args:
-            epoch ([int]): Current epoch number.
-        """
-
-        weight_dir = os.path.join(self.opt.outf, self.opt.name, 'train', 'weights')
-        if not os.path.exists(weight_dir):
-            os.makedirs(weight_dir)
-
-        torch.save({'epoch': epoch + 1, 'state_dict': self.nete.state_dict()},
-                   '%s/netE.pth' % (weight_dir))
-        torch.save({'epoch': epoch + 1, 'state_dict': self.netr.state_dict()},
-                   '%s/netR.pth' % (weight_dir))
-        torch.save({'epoch': epoch + 1, 'state_dict': self.netg.state_dict()},
-                   '%s/netG.pth' % (weight_dir))
-        torch.save({'epoch': epoch + 1, 'state_dict': self.netd.state_dict()},
-                   '%s/netD.pth' % (weight_dir))
-        torch.save({'epoch': epoch + 1, 'state_dict': self.nets.state_dict()},
-                   '%s/netS.pth' % (weight_dir))
+    # def seed(self, seed_value):
+    #     """ Seed
+    #
+    #     Arguments:
+    #         seed_value {int} -- [description]
+    #     """
+    #     # Check if seed is default value
+    #     if seed_value == -1:
+    #         return
+    #
+    #     # Otherwise seed all functionality
+    #     import random
+    #     random.seed(seed_value)
+    #     torch.manual_seed(seed_value)
+    #     torch.cuda.manual_seed_all(seed_value)
+    #     np.random.seed(seed_value)
+    #     torch.backends.cudnn.deterministic = True
+    #
+    # def save_weights(self, epoch):
+    #     """Save net weights for the current epoch.
+    #
+    #     Args:
+    #         epoch ([int]): Current epoch number.
+    #     """
+    #
+    #     weight_dir = os.path.join(self.opt.outf, self.opt.name, 'train', 'weights')
+    #     if not os.path.exists(weight_dir):
+    #         os.makedirs(weight_dir)
+    #
+    #     torch.save({'epoch': epoch + 1, 'state_dict': self.nete.state_dict()},
+    #                '%s/netE.pth' % (weight_dir))
+    #     torch.save({'epoch': epoch + 1, 'state_dict': self.netr.state_dict()},
+    #                '%s/netR.pth' % (weight_dir))
+    #     torch.save({'epoch': epoch + 1, 'state_dict': self.netg.state_dict()},
+    #                '%s/netG.pth' % (weight_dir))
+    #     torch.save({'epoch': epoch + 1, 'state_dict': self.netd.state_dict()},
+    #                '%s/netD.pth' % (weight_dir))
+    #     torch.save({'epoch': epoch + 1, 'state_dict': self.nets.state_dict()},
+    #                '%s/netS.pth' % (weight_dir))
 
     def train_one_iter_er(self):
         """ Train the model for one epoch.
