@@ -44,7 +44,7 @@ def fetchModel(in_features, out_features, args):
                              args.s4_bidirectional, args.s4_layernorm)
 
     elif args.backbone.lower() == 'timegan':
-        model = TimeGAN(args, None)
+        model = TimeGAN(args)
     return model
 
 
