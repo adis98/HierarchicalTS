@@ -67,7 +67,7 @@ if __name__ == "__main__":
             loss.backward(retain_graph=True)
             model.optimizer_e.step()
             model.optimizer_r.step()
-            total_loss += loss.detach().numpy()
+            total_loss += loss.detach().cpu().numpy()
         print(f'AUTOENCODER EPOCH {epoch}, LOSS: {total_loss}')
 
     """TRAINING SUPERVISOR"""
@@ -85,7 +85,7 @@ if __name__ == "__main__":
             loss = model.l_mse(out[:, :-1, non_hier_cols], batch[:, 1:, non_hier_cols])
             loss.backward(retain_graph=True)
             model.optimizer_s.step()
-            total_loss += loss.detach().numpy()
+            total_loss += loss.detach().cpu().numpy()
         print(f'RECOVERY EPOCH {epoch}, LOSS: {total_loss}')
 
     """TRAINING GENERATOR"""
@@ -98,7 +98,7 @@ if __name__ == "__main__":
             conditional_mask = from_numpy(conditional_mask).float().to(device)
             bool_mask = conditional_mask.bool()
             batch = batch.to(device)
-            z = batch.clone.detach()
+            z = batch.clone().detach()
             z[:, :, non_hier_cols] = torch.normal(0, 1, batch[:, :, non_hier_cols].shape).to(device)
             out_e = model.nete(batch)
             out_se = model.nets(out_e)
@@ -116,7 +116,7 @@ if __name__ == "__main__":
             err_s = model.l_mse(out_se[:, :-1, non_hier_cols], out_e[:, 1:, non_hier_cols])
             loss_g = err_g_U + err_g_U_e * 1 + err_g_V1 * 100 + err_g_V2 * 100 + torch.sqrt(err_s)
             loss_g.backward(retain_graph=True)
-            total_loss_g += loss_g.detach().numpy()
+            total_loss_g += loss_g.detach().cpu().numpy()
             model.optimizer_s.step()
             model.optimizer_g.step()
 
@@ -131,11 +131,11 @@ if __name__ == "__main__":
             loss_er.backward(retain_graph=True)
             model.optimizer_e.step()
             model.optimizer_r.step()
-            total_loss_er += loss_er.detach().numpy()
+            total_loss_er += loss_er.detach().cpu().numpy()
 
             """discriminator part"""
             out_e = model.nete(batch)
-            z = batch.clone.detach()
+            z = batch.clone().detach()
             z[:, :, non_hier_cols] = torch.normal(0, 1, batch[:, :, non_hier_cols].shape).to(device)
             out_g = model.netg(z)
             out_sg = model.nets(out_g)
@@ -150,8 +150,17 @@ if __name__ == "__main__":
             if loss_d > 0.15:
                 loss_d.backward(retain_graph=True)
             model.optimizer_d.step()
-            total_loss_d = loss_d.detach.numpy()
+            total_loss_d = loss_d.detach().cpu().numpy()
 
         print(f'GENERATOR EPOCH {epoch}, LOSS_G: {total_loss_g}, LOSS_ER: {total_loss_er}, LOSS_D: {total_loss_d}')
 
+        path = f'saved_models/{args.dataset}/'
+        if args.propCycEnc:
+            filename = "model_timegan_prop.pth"
+        else:
+            filename = "model_timegan.pth"
+        filepath = os.path.join(path, filename)
 
+        if not os.path.exists(path):
+            os.makedirs(path)
+        torch.save(model.state_dict(), filepath)

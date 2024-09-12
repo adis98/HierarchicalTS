@@ -223,111 +223,111 @@ class BaseModel(nn.Module):
     #     torch.save({'epoch': epoch + 1, 'state_dict': self.nets.state_dict()},
     #                '%s/netS.pth' % (weight_dir))
 
-    def train_one_iter_er(self):
-        """ Train the model for one epoch.
-        """
-
-        self.nete.train()
-        self.netr.train()
-
-        # set mini-batch
-        self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-        self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
-
-        # train encoder & decoder
-        self.optimize_params_er()
-
-    def train_one_iter_er_(self):
-        """ Train the model for one epoch.
-        """
-
-        self.nete.train()
-        self.netr.train()
-
-        # set mini-batch
-        self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-        self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
-
-        # train encoder & decoder
-        self.optimize_params_er_()
-
-    def train_one_iter_s(self):
-        """ Train the model for one epoch.
-        """
-
-        # self.nete.eval()
-        self.nets.train()
-
-        # set mini-batch
-        self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-        self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
-
-        # train superviser
-        self.optimize_params_s()
-
-    def train_one_iter_g(self):
-        """ Train the model for one epoch.
-        """
-
-        """self.netr.eval()
-        self.nets.eval()
-        self.netd.eval()"""
-        self.netg.train()
-
-        # set mini-batch
-        self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-        self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
-        self.Z = random_generator(self.opt.batch_size, self.opt.in_dim, self.T, self.max_seq_len)
-
-        # train superviser
-        self.optimize_params_g()
-
-    def train_one_iter_d(self):
-        """ Train the model for one epoch.
-        """
-        """self.nete.eval()
-        self.netr.eval()
-        self.nets.eval()
-        self.netg.eval()"""
-        self.netd.train()
-
-        # set mini-batch
-        self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-        self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
-        self.Z = random_generator(self.opt.batch_size, self.opt.in_dim, self.T, self.max_seq_len)
-
-        # train superviser
-        self.optimize_params_d()
-
-    def train(self):
-        """ Train the model
-        """
-
-        for iter in range(self.opt.iteration):
-            # Train for one iter
-            self.train_one_iter_er()
-
-            print('Encoder training step: ' + str(iter) + '/' + str(self.opt.iteration))
-
-        for iter in range(self.opt.iteration):
-            # Train for one iter
-            self.train_one_iter_s()
-
-            print('Superviser training step: ' + str(iter) + '/' + str(self.opt.iteration))
-
-        for iter in range(self.opt.iteration):
-            # Train for one iter
-            for kk in range(2):
-                self.train_one_iter_g()
-                self.train_one_iter_er_()
-
-            self.train_one_iter_d()
-
-            print('Superviser training step: ' + str(iter) + '/' + str(self.opt.iteration))
-
-        self.save_weights(self.opt.iteration)
-        self.generated_data = self.generation(self.opt.batch_size)
-        print('Finish Synthetic Data Generation')
+    # def train_one_iter_er(self):
+    #     """ Train the model for one epoch.
+    #     """
+    #
+    #     self.nete.train()
+    #     self.netr.train()
+    #
+    #     # set mini-batch
+    #     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
+    #     self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    #
+    #     # train encoder & decoder
+    #     self.optimize_params_er()
+    #
+    # def train_one_iter_er_(self):
+    #     """ Train the model for one epoch.
+    #     """
+    #
+    #     self.nete.train()
+    #     self.netr.train()
+    #
+    #     # set mini-batch
+    #     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
+    #     self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    #
+    #     # train encoder & decoder
+    #     self.optimize_params_er_()
+    #
+    # def train_one_iter_s(self):
+    #     """ Train the model for one epoch.
+    #     """
+    #
+    #     # self.nete.eval()
+    #     self.nets.train()
+    #
+    #     # set mini-batch
+    #     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
+    #     self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    #
+    #     # train superviser
+    #     self.optimize_params_s()
+    #
+    # def train_one_iter_g(self):
+    #     """ Train the model for one epoch.
+    #     """
+    #
+    #     """self.netr.eval()
+    #     self.nets.eval()
+    #     self.netd.eval()"""
+    #     self.netg.train()
+    #
+    #     # set mini-batch
+    #     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
+    #     self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    #     self.Z = random_generator(self.opt.batch_size, self.opt.in_dim, self.T, self.max_seq_len)
+    #
+    #     # train superviser
+    #     self.optimize_params_g()
+    #
+    # def train_one_iter_d(self):
+    #     """ Train the model for one epoch.
+    #     """
+    #     """self.nete.eval()
+    #     self.netr.eval()
+    #     self.nets.eval()
+    #     self.netg.eval()"""
+    #     self.netd.train()
+    #
+    #     # set mini-batch
+    #     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
+    #     self.X = torch.tensor(self.X0, dtype=torch.float32).to(self.device)
+    #     self.Z = random_generator(self.opt.batch_size, self.opt.in_dim, self.T, self.max_seq_len)
+    #
+    #     # train superviser
+    #     self.optimize_params_d()
+    #
+    # def train(self):
+    #     """ Train the model
+    #     """
+    #
+    #     for iter in range(self.opt.iteration):
+    #         # Train for one iter
+    #         self.train_one_iter_er()
+    #
+    #         print('Encoder training step: ' + str(iter) + '/' + str(self.opt.iteration))
+    #
+    #     for iter in range(self.opt.iteration):
+    #         # Train for one iter
+    #         self.train_one_iter_s()
+    #
+    #         print('Superviser training step: ' + str(iter) + '/' + str(self.opt.iteration))
+    #
+    #     for iter in range(self.opt.iteration):
+    #         # Train for one iter
+    #         for kk in range(2):
+    #             self.train_one_iter_g()
+    #             self.train_one_iter_er_()
+    #
+    #         self.train_one_iter_d()
+    #
+    #         print('Superviser training step: ' + str(iter) + '/' + str(self.opt.iteration))
+    #
+    #     self.save_weights(self.opt.iteration)
+    #     self.generated_data = self.generation(self.opt.batch_size)
+    #     print('Finish Synthetic Data Generation')
 
     #  self.evaluation()
 
@@ -360,26 +360,26 @@ class BaseModel(nn.Module):
       print(metric_results)
   """
 
-    def generation(self, num_samples, mean=0.0, std=1.0):
-        if num_samples == 0:
-            return None, None
-        ## Synthetic data generation
-        self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-        self.Z = random_generator(num_samples, self.opt.in_dim, self.T, self.max_seq_len, mean, std)
-        self.Z = torch.tensor(self.Z, dtype=torch.float32).to(self.device)
-        self.E_hat = self.netg(self.Z)  # [?, 24, 24]
-        self.H_hat = self.nets(self.E_hat)  # [?, 24, 24]
-        generated_data_curr = self.netr(self.H_hat).cpu().detach().numpy()  # [?, 24, 24]
-
-        generated_data = list()
-        for i in range(num_samples):
-            temp = generated_data_curr[i, :self.ori_time[i], :]
-            generated_data.append(temp)
-
-        # Renormalization
-        generated_data = generated_data * self.max_val
-        generated_data = generated_data + self.min_val
-        return generated_data
+    # def generation(self, num_samples, mean=0.0, std=1.0):
+    #     if num_samples == 0:
+    #         return None, None
+    #     ## Synthetic data generation
+    #     self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
+    #     self.Z = random_generator(num_samples, self.opt.in_dim, self.T, self.max_seq_len, mean, std)
+    #     self.Z = torch.tensor(self.Z, dtype=torch.float32).to(self.device)
+    #     self.E_hat = self.netg(self.Z)  # [?, 24, 24]
+    #     self.H_hat = self.nets(self.E_hat)  # [?, 24, 24]
+    #     generated_data_curr = self.netr(self.H_hat).cpu().detach().numpy()  # [?, 24, 24]
+    #
+    #     generated_data = list()
+    #     for i in range(num_samples):
+    #         temp = generated_data_curr[i, :self.ori_time[i], :]
+    #         generated_data.append(temp)
+    #
+    #     # Renormalization
+    #     generated_data = generated_data * self.max_val
+    #     generated_data = generated_data + self.min_val
+    #     return generated_data
 
 
 class TimeGAN(BaseModel):
@@ -438,182 +438,182 @@ class TimeGAN(BaseModel):
         self.optimizer_d = optim.Adam(self.netd.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
         self.optimizer_s = optim.Adam(self.nets.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
 
-    def forward_e(self):
-        """ Forward propagate through netE
-        """
-        self.H = self.nete(self.X)
-
-    def forward_er(self):
-        """ Forward propagate through netR
-        """
-        self.H = self.nete(self.X)
-        self.X_tilde = self.netr(self.H)
-
-    def forward_g(self):
-        """ Forward propagate through netG
-        """
-        self.Z = torch.tensor(self.Z, dtype=torch.float32).to(self.device)
-        self.E_hat = self.netg(self.Z)
-
-    def forward_dg(self):
-        """ Forward propagate through netD
-        """
-        self.Y_fake = self.netd(self.H_hat)
-        self.Y_fake_e = self.netd(self.E_hat)
-
-    def forward_rg(self):
-        """ Forward propagate through netG
-        """
-        self.X_hat = self.netr(self.H_hat)
-
-    def forward_s(self):
-        """ Forward propagate through netS
-        """
-        self.H_supervise = self.nets(self.H)
-        # print(self.H, self.H_supervise)
-
-    def forward_sg(self):
-        """ Forward propagate through netS
-        """
-        self.H_hat = self.nets(self.E_hat)
-
-    def forward_d(self):
-        """ Forward propagate through netD
-        """
-        self.Y_real = self.netd(self.H)
-        self.Y_fake = self.netd(self.H_hat)
-        self.Y_fake_e = self.netd(self.E_hat)
-
-    def backward_er(self):
-        """ Backpropagate through netE
-        """
-        self.err_er = self.l_mse(self.X_tilde, self.X)
-        self.err_er.backward(retain_graph=True)
-        print("Loss: ", self.err_er)
-
-    def backward_er_(self):
-        """ Backpropagate through netE
-        """
-        self.err_er_ = self.l_mse(self.X_tilde, self.X)
-        self.err_s = self.l_mse(self.H_supervise[:, :-1, :], self.H[:, 1:, :])
-        self.err_er = 10 * torch.sqrt(self.err_er_) + 0.1 * self.err_s
-        self.err_er.backward(retain_graph=True)
-
-    #  print("Loss: ", self.err_er_, self.err_s)
-    def backward_g(self):
-        """ Backpropagate through netG
-        """
-        self.err_g_U = self.l_bce(self.Y_fake, torch.ones_like(self.Y_fake))
-
-        self.err_g_U_e = self.l_bce(self.Y_fake_e, torch.ones_like(self.Y_fake_e))
-        self.err_g_V1 = torch.mean(torch.abs(torch.sqrt(torch.std(self.X_hat, [0])[1] + 1e-6) - torch.sqrt(
-            torch.std(self.X, [0])[1] + 1e-6)))  # |a^2 - b^2|
-        self.err_g_V2 = torch.mean(
-            torch.abs((torch.mean(self.X_hat, [0])[0]) - (torch.mean(self.X, [0])[0])))  # |a - b|
-        self.err_s = self.l_mse(self.H_supervise[:, :-1, :], self.H[:, 1:, :])
-        self.err_g = self.err_g_U + \
-                     self.err_g_U_e * self.opt.w_gamma + \
-                     self.err_g_V1 * self.opt.w_g + \
-                     self.err_g_V2 * self.opt.w_g + \
-                     torch.sqrt(self.err_s)
-        self.err_g.backward(retain_graph=True)
-        print("Loss G: ", self.err_g)
-
-    def backward_s(self):
-        """ Backpropagate through netS
-        """
-        self.err_s = self.l_mse(self.H[:, 1:, :], self.H_supervise[:, :-1, :])
-        self.err_s.backward(retain_graph=True)
-        print("Loss S: ", self.err_s)
-
-    #   print(torch.autograd.grad(self.err_s, self.nets.parameters()))
-
-    def backward_d(self):
-        """ Backpropagate through netD
-        """
-        self.err_d_real = self.l_bce(self.Y_real, torch.ones_like(self.Y_real))
-        self.err_d_fake = self.l_bce(self.Y_fake, torch.zeros_like(self.Y_fake))
-        self.err_d_fake_e = self.l_bce(self.Y_fake_e, torch.zeros_like(self.Y_fake_e))
-        self.err_d = self.err_d_real + \
-                     self.err_d_fake + \
-                     self.err_d_fake_e * self.opt.w_gamma
-        if self.err_d > 0.15:
-            self.err_d.backward(retain_graph=True)
-
-    # print("Loss D: ", self.err_d)
-
-    def optimize_params_er(self):
-        """ Forwardpass, Loss Computation and Backwardpass.
-        """
-        # Forward-pass
-        self.forward_er()
-
-        # Backward-pass
-        # nete & netr
-        self.optimizer_e.zero_grad()
-        self.optimizer_r.zero_grad()
-        self.backward_er()
-        self.optimizer_e.step()
-        self.optimizer_r.step()
-
-    def optimize_params_er_(self):
-        """ Forwardpass, Loss Computation and Backwardpass.
-        """
-        # Forward-pass
-        self.forward_er()
-        self.forward_s()
-        # Backward-pass
-        # nete & netr
-        self.optimizer_e.zero_grad()
-        self.optimizer_r.zero_grad()
-        self.backward_er_()
-        self.optimizer_e.step()
-        self.optimizer_r.step()
-
-    def optimize_params_s(self):
-        """ Forwardpass, Loss Computation and Backwardpass.
-        """
-        # Forward-pass
-        self.forward_e()
-        self.forward_s()
-
-        # Backward-pass
-        # nets
-        self.optimizer_s.zero_grad()
-        self.backward_s()
-        self.optimizer_s.step()
-
-    def optimize_params_g(self):
-        """ Forwardpass, Loss Computation and Backwardpass.
-        """
-        # Forward-pass
-        self.forward_e()
-        self.forward_s()
-        self.forward_g()
-        self.forward_sg()
-        self.forward_rg()
-        self.forward_dg()
-
-        # Backward-pass
-        # nets
-        self.optimizer_g.zero_grad()
-        self.optimizer_s.zero_grad()
-        self.backward_g()
-        self.optimizer_g.step()
-        self.optimizer_s.step()
-
-    def optimize_params_d(self):
-        """ Forwardpass, Loss Computation and Backwardpass.
-        """
-        # Forward-pass
-        self.forward_e()
-        self.forward_g()
-        self.forward_sg()
-        self.forward_d()
-        self.forward_dg()
-
-        # Backward-pass
-        # nets
-        self.optimizer_d.zero_grad()
-        self.backward_d()
-        self.optimizer_d.step()
+    # def forward_e(self):
+    #     """ Forward propagate through netE
+    #     """
+    #     self.H = self.nete(self.X)
+    #
+    # def forward_er(self):
+    #     """ Forward propagate through netR
+    #     """
+    #     self.H = self.nete(self.X)
+    #     self.X_tilde = self.netr(self.H)
+    #
+    # def forward_g(self):
+    #     """ Forward propagate through netG
+    #     """
+    #     self.Z = torch.tensor(self.Z, dtype=torch.float32).to(self.device)
+    #     self.E_hat = self.netg(self.Z)
+    #
+    # def forward_dg(self):
+    #     """ Forward propagate through netD
+    #     """
+    #     self.Y_fake = self.netd(self.H_hat)
+    #     self.Y_fake_e = self.netd(self.E_hat)
+    #
+    # def forward_rg(self):
+    #     """ Forward propagate through netG
+    #     """
+    #     self.X_hat = self.netr(self.H_hat)
+    #
+    # def forward_s(self):
+    #     """ Forward propagate through netS
+    #     """
+    #     self.H_supervise = self.nets(self.H)
+    #     # print(self.H, self.H_supervise)
+    #
+    # def forward_sg(self):
+    #     """ Forward propagate through netS
+    #     """
+    #     self.H_hat = self.nets(self.E_hat)
+    #
+    # def forward_d(self):
+    #     """ Forward propagate through netD
+    #     """
+    #     self.Y_real = self.netd(self.H)
+    #     self.Y_fake = self.netd(self.H_hat)
+    #     self.Y_fake_e = self.netd(self.E_hat)
+    #
+    # def backward_er(self):
+    #     """ Backpropagate through netE
+    #     """
+    #     self.err_er = self.l_mse(self.X_tilde, self.X)
+    #     self.err_er.backward(retain_graph=True)
+    #     print("Loss: ", self.err_er)
+    #
+    # def backward_er_(self):
+    #     """ Backpropagate through netE
+    #     """
+    #     self.err_er_ = self.l_mse(self.X_tilde, self.X)
+    #     self.err_s = self.l_mse(self.H_supervise[:, :-1, :], self.H[:, 1:, :])
+    #     self.err_er = 10 * torch.sqrt(self.err_er_) + 0.1 * self.err_s
+    #     self.err_er.backward(retain_graph=True)
+    #
+    # #  print("Loss: ", self.err_er_, self.err_s)
+    # def backward_g(self):
+    #     """ Backpropagate through netG
+    #     """
+    #     self.err_g_U = self.l_bce(self.Y_fake, torch.ones_like(self.Y_fake))
+    #
+    #     self.err_g_U_e = self.l_bce(self.Y_fake_e, torch.ones_like(self.Y_fake_e))
+    #     self.err_g_V1 = torch.mean(torch.abs(torch.sqrt(torch.std(self.X_hat, [0])[1] + 1e-6) - torch.sqrt(
+    #         torch.std(self.X, [0])[1] + 1e-6)))  # |a^2 - b^2|
+    #     self.err_g_V2 = torch.mean(
+    #         torch.abs((torch.mean(self.X_hat, [0])[0]) - (torch.mean(self.X, [0])[0])))  # |a - b|
+    #     self.err_s = self.l_mse(self.H_supervise[:, :-1, :], self.H[:, 1:, :])
+    #     self.err_g = self.err_g_U + \
+    #                  self.err_g_U_e * self.opt.w_gamma + \
+    #                  self.err_g_V1 * self.opt.w_g + \
+    #                  self.err_g_V2 * self.opt.w_g + \
+    #                  torch.sqrt(self.err_s)
+    #     self.err_g.backward(retain_graph=True)
+    #     print("Loss G: ", self.err_g)
+    #
+    # def backward_s(self):
+    #     """ Backpropagate through netS
+    #     """
+    #     self.err_s = self.l_mse(self.H[:, 1:, :], self.H_supervise[:, :-1, :])
+    #     self.err_s.backward(retain_graph=True)
+    #     print("Loss S: ", self.err_s)
+    #
+    # #   print(torch.autograd.grad(self.err_s, self.nets.parameters()))
+    #
+    # def backward_d(self):
+    #     """ Backpropagate through netD
+    #     """
+    #     self.err_d_real = self.l_bce(self.Y_real, torch.ones_like(self.Y_real))
+    #     self.err_d_fake = self.l_bce(self.Y_fake, torch.zeros_like(self.Y_fake))
+    #     self.err_d_fake_e = self.l_bce(self.Y_fake_e, torch.zeros_like(self.Y_fake_e))
+    #     self.err_d = self.err_d_real + \
+    #                  self.err_d_fake + \
+    #                  self.err_d_fake_e * self.opt.w_gamma
+    #     if self.err_d > 0.15:
+    #         self.err_d.backward(retain_graph=True)
+    #
+    # # print("Loss D: ", self.err_d)
+    #
+    # def optimize_params_er(self):
+    #     """ Forwardpass, Loss Computation and Backwardpass.
+    #     """
+    #     # Forward-pass
+    #     self.forward_er()
+    #
+    #     # Backward-pass
+    #     # nete & netr
+    #     self.optimizer_e.zero_grad()
+    #     self.optimizer_r.zero_grad()
+    #     self.backward_er()
+    #     self.optimizer_e.step()
+    #     self.optimizer_r.step()
+    #
+    # def optimize_params_er_(self):
+    #     """ Forwardpass, Loss Computation and Backwardpass.
+    #     """
+    #     # Forward-pass
+    #     self.forward_er()
+    #     self.forward_s()
+    #     # Backward-pass
+    #     # nete & netr
+    #     self.optimizer_e.zero_grad()
+    #     self.optimizer_r.zero_grad()
+    #     self.backward_er_()
+    #     self.optimizer_e.step()
+    #     self.optimizer_r.step()
+    #
+    # def optimize_params_s(self):
+    #     """ Forwardpass, Loss Computation and Backwardpass.
+    #     """
+    #     # Forward-pass
+    #     self.forward_e()
+    #     self.forward_s()
+    #
+    #     # Backward-pass
+    #     # nets
+    #     self.optimizer_s.zero_grad()
+    #     self.backward_s()
+    #     self.optimizer_s.step()
+    #
+    # def optimize_params_g(self):
+    #     """ Forwardpass, Loss Computation and Backwardpass.
+    #     """
+    #     # Forward-pass
+    #     self.forward_e()
+    #     self.forward_s()
+    #     self.forward_g()
+    #     self.forward_sg()
+    #     self.forward_rg()
+    #     self.forward_dg()
+    #
+    #     # Backward-pass
+    #     # nets
+    #     self.optimizer_g.zero_grad()
+    #     self.optimizer_s.zero_grad()
+    #     self.backward_g()
+    #     self.optimizer_g.step()
+    #     self.optimizer_s.step()
+    #
+    # def optimize_params_d(self):
+    #     """ Forwardpass, Loss Computation and Backwardpass.
+    #     """
+    #     # Forward-pass
+    #     self.forward_e()
+    #     self.forward_g()
+    #     self.forward_sg()
+    #     self.forward_d()
+    #     self.forward_dg()
+    #
+    #     # Backward-pass
+    #     # nets
+    #     self.optimizer_d.zero_grad()
+    #     self.backward_d()
+    #     self.optimizer_d.step()
