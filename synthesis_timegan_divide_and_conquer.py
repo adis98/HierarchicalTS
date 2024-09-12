@@ -96,6 +96,7 @@ if __name__ == "__main__":
     with torch.no_grad():
         synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
         for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
+            test_batch = test_batch.to(device)
             x = torch.normal(0, 1, (test_batch.shape[0], test_batch.shape[1], args.embed_dim)).to(device)
             print(f'batch: {idx} of {len(test_dataloader)}')
             out_g = model.netg(x, test_batch[:, :, hierarchical_column_indices])
@@ -106,11 +107,11 @@ if __name__ == "__main__":
             synth_tensor = torch.cat((synth_tensor, generated.view(-1, generated.shape[2])), dim=0)
 
     df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
-    real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
-    real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
+    # real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
+    # real_df_reconverted = real_df.round(decimal_accuracy)
     # decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
     synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
-
+    real_df = real_df.reset_index(drop=True)
     rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
     for col, value in constraints.items():
         column_mask = synth_df_reconverted[col] == value
@@ -121,8 +122,8 @@ if __name__ == "__main__":
     path = f'generated/{args.dataset}/{str(constraints)}/'
     if not os.path.exists(path):
         os.makedirs(path)
-    real_df_reconverted.to_csv(f'{path}real.csv')
-    synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
+    real_df.to_csv(f'{path}real.csv')
+    synth_df_reconverted_selected = synth_df_reconverted_selected[real_df.columns]
     if args.propCycEnc:
         synth_df_reconverted_selected.to_csv(f'{path}synth_timegan_stride_{args.stride}_prop.csv')
     else:
