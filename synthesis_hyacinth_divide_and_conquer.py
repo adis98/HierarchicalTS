@@ -7,7 +7,7 @@ from torch import from_numpy, optim, nn, randint, normal, sqrt, device, save
 from torch.utils.data import DataLoader
 import pandas as pd
 import os
-from metasynth import metaSynthHyacinth
+from metasynth import metadataMask
 
 
 def decimal_places(series):
@@ -47,36 +47,41 @@ if __name__ == "__main__":
     parser.add_argument('-s4_bidirectional', type=bool, default=True)
     parser.add_argument('-s4_layernorm', type=bool, default=True)
     parser.add_argument('-propCycEnc', type=bool, default=False)
+    parser.add_argument('-synth_mask', type=str, required=True, help="the hierarchy masking type, coarse (C), fine (F), mid (M)")
     args = parser.parse_args()
     dataset = args.dataset
     device = device('cuda' if torch.cuda.is_available() else 'cpu')
     preprocessor = Preprocessor(dataset, args.propCycEnc)
     df = preprocessor.df_cleaned
-
-    train_df_with_hierarchy = preprocessor.cyclicDecode(df)
+    training_df = df.loc[preprocessor.train_indices]
+    test_df = df.loc[preprocessor.test_indices]
+    test_df_with_hierarchy = preprocessor.cyclicDecode(test_df)
     decimal_accuracy_orig = preprocessor.df_orig.apply(decimal_places).to_dict()
-    decimal_accuracy_processed = train_df_with_hierarchy.apply(decimal_places).to_dict()
+    decimal_accuracy_processed = test_df_with_hierarchy.apply(decimal_places).to_dict()
     decimal_accuracy = {}
     for key in decimal_accuracy_processed.keys():
         decimal_accuracy[key] = decimal_accuracy_orig[key]
-    test_df_with_hierarchy = train_df_with_hierarchy.copy()
-    constraints = {'year': 2013}  # determines which rows need synthetic data
-    metadata = metaSynthHyacinth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
-    rows_to_synth = pd.Series([True] * len(metadata))
+
+    metadata = test_df_with_hierarchy[preprocessor.hierarchical_features_uncyclic]
+    rows_to_synth = metadataMask(metadata, args.synth_mask, args.dataset)
+    # constraints = {'year': 2013}  # determines which rows need synthetic data
+    # metadata = metaSynthHyacinth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
+
     # Iterate over the dictionary to create masks for each column
-    for col, value in constraints.items():
-        column_mask = metadata[col] == value
-        rows_to_synth &= column_mask
+    # for col, value in constraints.items():
+    #     column_mask = metadata[col] == value
+    #     rows_to_synth &= column_mask
 
-    rows_to_synth_orig = rows_to_synth
-    real_exclusive = rows_to_synth & (metadata['_merge'] == 'both')  # rows in the real data that need re-synthesis
-    rows_to_synth |= metadata['_merge'] == 'left_only'
-    real_df = metadata.loc[real_exclusive]
-    real_df = real_df.drop(columns=['_merge'])
-
-    df_synth = metadata.copy()
-    df_synth = preprocessor.cyclicEncode(df_synth)
-    df_synth = df_synth.drop(columns=['_merge'])
+    # rows_to_synth_orig = rows_to_synth
+    # real_exclusive = rows_to_synth & (metadata['_merge'] == 'both')  # rows in the real data that need re-synthesis
+    # rows_to_synth |= metadata['_merge'] == 'left_only'
+    # real_df = metadata.loc[real_exclusive]
+    # real_df = real_df.drop(columns=['_merge'])
+    real_df = test_df_with_hierarchy[rows_to_synth]
+    # df_synth = metadata.copy()
+    # df_synth = preprocessor.cyclicEncode(df_synth)
+    # df_synth = df_synth.drop(columns=['_merge'])
+    df_synth = test_df.copy()
     """Approach 1: Divide and conquer"""
     test_samples = []
     mask_samples = []
@@ -175,14 +180,14 @@ if __name__ == "__main__":
     # decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
     synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
 
-    rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
-    for col, value in constraints.items():
-        column_mask = synth_df_reconverted[col] == value
-        rows_to_select_synth &= column_mask
-    synth_df_reconverted_selected = synth_df_reconverted.loc[rows_to_select_synth]
+    # rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
+    # for col, value in constraints.items():
+    #     column_mask = synth_df_reconverted[col] == value
+    #     rows_to_select_synth &= column_mask
+    synth_df_reconverted_selected = synth_df_reconverted.loc[rows_to_synth]
     synth_df_reconverted_selected = synth_df_reconverted_selected.round(decimal_accuracy)
     synth_df_reconverted_selected = synth_df_reconverted_selected.reset_index(drop=True)
-    path = f'generated/{args.dataset}/{str(constraints)}/'
+    path = f'generated/{args.dataset}/{args.synth_mask}/'
     if not os.path.exists(path):
         os.makedirs(path)
     real_df_reconverted.to_csv(f'{path}real.csv')

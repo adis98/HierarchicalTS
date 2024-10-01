@@ -105,6 +105,11 @@ class Preprocessor:
         self.df_orig = self.fetchDataset(name, False)
         self.column_dtypes = self.df_orig.dtypes.to_dict()
         self.df_cleaned = self.fetchDataset(name, True)
+        self.train_indices = None
+        self.test_indices = None
+        if name == "MetroTraffic":
+            self.test_indices = self.df_orig.index[self.df_orig['year'] == 2018].to_list()
+            self.train_indices = self.df_orig.index[self.df_orig['year'] != 2018].to_list()
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":

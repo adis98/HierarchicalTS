@@ -27,3 +27,11 @@ def metaSynthTimeWeaver(constraints, hierarchical_feats, df):
     return hierarchical_df
 
 
+def metadataMask(metadata, synthmask, dataset):
+    if dataset == "MetroTraffic":
+        if synthmask == "C":
+            return metadata['year'] == 2018
+        elif synthmask == "M":
+            return (metadata['year'] == 2018) & (metadata['day'] == 15)
+        elif synthmask == "F":
+            return (metadata['year'] == 2018) & (metadata['hour'] == 6)

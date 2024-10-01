@@ -11,6 +11,8 @@ import os
 from torch.utils.data import DataLoader
 
 if __name__ == "__main__":
+    np.random.seed(42)
+    torch.manual_seed(42)
     parser = argparse.ArgumentParser()
     parser.add_argument('-dataset', '-d', type=str,
                         help='MetroTraffic, BeijingAirQuality, AustraliaTourism, WebTraffic, StoreItems', required=True)
@@ -42,21 +44,23 @@ if __name__ == "__main__":
     device = device('cuda' if torch.cuda.is_available() else 'cpu')
     preprocessor = Preprocessor(dataset, args.propCycEnc)
     df = preprocessor.df_cleaned
-    hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
+    training_df = df.loc[preprocessor.train_indices]
+    test_df = df.loc[preprocessor.test_indices]
+    hierarchical_column_indices = training_df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     training_samples = []
-    for i in range(0, len(df) - args.window_size + 1, args.stride):
-        window = df.iloc[i:i + args.window_size].values
+    for i in range(0, len(training_df) - args.window_size + 1, args.stride):
+        window = training_df.iloc[i:i + args.window_size].values
         training_samples.append(window)
 
-    in_dim = len(df.columns)
-    out_dim = len(df.columns) - len(hierarchical_column_indices)
+    in_dim = len(training_df.columns)
+    out_dim = len(training_df.columns) - len(hierarchical_column_indices)
     training_dataset = MyDataset(from_numpy(np.array(training_samples)).float())
     model = fetchModel(in_dim, out_dim, args).to(device)
     diffusion_config = fetchDiffusionConfig(args)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.MSELoss()
-    dataloader = DataLoader(training_dataset, batch_size=args.batch_size)
-    all_indices = np.arange(len(df.columns))
+    dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True)
+    all_indices = np.arange(len(training_df.columns))
 
     # Find the indices not in the index_list
     remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
