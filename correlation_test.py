@@ -9,7 +9,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-dataset', '-d', type=str,
                         help='MetroTraffic, BeijingAirQuality, AustraliaTourism, WebTraffic, StoreItems', required=True)
-    parser.add_argument('-stride', type=int, default=1)
     parser.add_argument('-propCycEnc', type=bool, default=False)
     args = parser.parse_args()
     dataset = args.dataset

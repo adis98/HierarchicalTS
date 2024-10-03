@@ -148,17 +148,24 @@ class Preprocessor:
             for column in df_clean.columns:
                 if df_clean[column].dtype != 'object':
                     df_clean[column] = df_clean[column].interpolate()
-            self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'wd', 'station']
+            if self.cyclic_encoded_columns is None:
+                self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'wd', 'station']
 
         elif name == 'MetroTraffic':
-            self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
+            if self.cyclic_encoded_columns is None:
+                self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
                                            'weather_description']
 
         df_cyclic = self.cyclicEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 
-        self.cols_to_scale = [col for col in df_cyclic.columns if
-                              col not in self.cyclic_encoded_columns and '_sine' not in col and '_cos' not in col]
-        df_cyclic[self.cols_to_scale] = self.scaler.fit_transform(df[self.cols_to_scale])
+        if self.cols_to_scale is None:
+            self.cols_to_scale = [col for col in df_cyclic.columns if
+                                  col not in self.cyclic_encoded_columns and '_sine' not in col and '_cos' not in col]
+
+        if hasattr(self.scaler, 'mean_') and hasattr(self.scaler, 'scale_'):
+            df_cyclic[self.cols_to_scale] = self.scaler.transform(df[self.cols_to_scale])
+        else:
+            df_cyclic[self.cols_to_scale] = self.scaler.fit_transform(df[self.cols_to_scale])
         return df_cyclic
 
     def cyclicEncode(self, df):
