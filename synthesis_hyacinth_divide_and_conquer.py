@@ -21,6 +21,8 @@ def create_pipelined_noise(test_batch, args):
 
 
 if __name__ == "__main__":
+    np.random.seed(42)
+    torch.manual_seed(42)
     parser = argparse.ArgumentParser()
     parser.add_argument('-dataset', '-d', type=str,
                         help='MetroTraffic, BeijingAirQuality, AustraliaTourism, WebTraffic, StoreItems', required=True)
@@ -48,13 +50,15 @@ if __name__ == "__main__":
     parser.add_argument('-s4_layernorm', type=bool, default=True)
     parser.add_argument('-propCycEnc', type=bool, default=False)
     parser.add_argument('-synth_mask', type=str, required=True, help="the hierarchy masking type, coarse (C), fine (F), mid (M)")
+    parser.add_argument('-n_trials', type=int, default=5)
     args = parser.parse_args()
     dataset = args.dataset
     device = device('cuda' if torch.cuda.is_available() else 'cpu')
     preprocessor = Preprocessor(dataset, args.propCycEnc)
     df = preprocessor.df_cleaned
-    training_df = df.loc[preprocessor.train_indices]
-    test_df = df.loc[preprocessor.test_indices]
+
+    #  Add some more samples form the training set as additional context for synthesis
+    test_df = df.loc[preprocessor.train_indices[-args.window_size:] + preprocessor.test_indices]
     test_df_with_hierarchy = preprocessor.cyclicDecode(test_df)
     decimal_accuracy_orig = preprocessor.df_orig.apply(decimal_places).to_dict()
     decimal_accuracy_processed = test_df_with_hierarchy.apply(decimal_places).to_dict()
@@ -93,8 +97,8 @@ if __name__ == "__main__":
     windows = d_vals_tensor.unfold(0, args.window_size, 1).transpose(1, 2)
     masks = m_vals_tensor.unfold(0, args.window_size, 1)
     condition = torch.any(masks, dim=1)
-    windows = windows[condition]
-    masks = masks[condition]
+    # windows = windows[condition]
+    # masks = masks[condition]
     hierarchical_column_indices = df_synth.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     in_dim = len(df_synth.columns)
     out_dim = len(df_synth.columns) - len(hierarchical_column_indices)
@@ -121,78 +125,82 @@ if __name__ == "__main__":
             param.requires_grad = False
     model.eval()
 
-    with torch.no_grad():
-        synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
-        for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
-            x = create_pipelined_noise(test_batch, args).to(device)
-            print(f'batch: {idx} of {len(test_dataloader)}')
-            for step in range(diffusion_config['T'] - 1, -1, -1):
-                test_batch = test_batch.to(device)
-                mask_batch = mask_batch.to(device)
-                print(f"backward step: {step}")
-                times = torch.full(size=(test_batch.shape[0], 1), fill_value=step).to(device)
-                alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
-                alpha_bar_t_1 = diffusion_config['alpha_bars'][step - 1].to(device)
-                alpha_t = diffusion_config['alphas'][step].to(device)
-                beta_t = diffusion_config['betas'][step].to(device)
+    for trial in range(args.n_trials):
+        with torch.no_grad():
+            synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
+            for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
+                x = create_pipelined_noise(test_batch, args).to(device)
+                print(f'batch: {idx} of {len(test_dataloader)}')
+                for step in range(diffusion_config['T'] - 1, -1, -1):
+                    test_batch = test_batch.to(device)
+                    mask_batch = mask_batch.to(device)
+                    print(f"backward step: {step}")
+                    times = torch.full(size=(test_batch.shape[0], 1), fill_value=step).to(device)
+                    alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
+                    alpha_bar_t_1 = diffusion_config['alpha_bars'][step - 1].to(device)
+                    alpha_t = diffusion_config['alphas'][step].to(device)
+                    beta_t = diffusion_config['betas'][step].to(device)
 
-                sampled_noise = create_pipelined_noise(test_batch, args).to(device)
-                cached_denoising = torch.sqrt(alpha_bar_t) * test_batch + torch.sqrt(1 - alpha_bar_t) * sampled_noise
-                mask_expanded = torch.zeros_like(test_batch, dtype=bool)
-                for channel in non_hier_cols:
-                    mask_expanded[:, :, channel] = mask_batch
-                x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
-                x[~mask_expanded] = cached_denoising[~mask_expanded]
-                epsilon_pred = model(x, times)
-                epsilon_pred = epsilon_pred.permute((0, 2, 1))
-                if step > 0:
-                    vari = beta_t * ((1 - alpha_bar_t_1) / (1 - alpha_bar_t)) * torch.normal(0, 1,
-                                                                                             size=epsilon_pred.shape).to(
-                        device)
+                    sampled_noise = create_pipelined_noise(test_batch, args).to(device)
+                    cached_denoising = torch.sqrt(alpha_bar_t) * test_batch + torch.sqrt(1 - alpha_bar_t) * sampled_noise
+                    mask_expanded = torch.zeros_like(test_batch, dtype=bool)
+                    for channel in non_hier_cols:
+                        mask_expanded[:, :, channel] = mask_batch
+                    x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
+                    x[~mask_expanded] = cached_denoising[~mask_expanded]
+                    epsilon_pred = model(x, times)
+                    epsilon_pred = epsilon_pred.permute((0, 2, 1))
+                    if step > 0:
+                        vari = beta_t * ((1 - alpha_bar_t_1) / (1 - alpha_bar_t)) * torch.normal(0, 1,
+                                                                                                 size=epsilon_pred.shape).to(
+                            device)
+                    else:
+                        vari = 0.0
+
+                    normal_denoising = create_pipelined_noise(test_batch, args).to(device)
+                    normal_denoising[:, :, non_hier_cols] = (x[:, :, non_hier_cols] - (
+                            (beta_t / torch.sqrt(1 - alpha_bar_t)) * epsilon_pred)) / torch.sqrt(alpha_t)
+                    normal_denoising[:, :, non_hier_cols] += vari
+                    masked_binary = mask_batch.int()
+                    # x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
+                    x[mask_expanded] = normal_denoising[mask_expanded]
+                    x[~mask_expanded] = test_batch[~mask_expanded]
+                    rolled_x = x.roll(1, 0)
+                    x[1:, : args.window_size - 1, :] = rolled_x[1:, 1: args.window_size, :]
+                    # if step == 0:
+                    #     x[~mask_batch][:, non_hier_cols] = test_batch[~mask_batch][:, non_hier_cols]
+                    #     k = x[~mask_batch][:, non_hier_cols]
+
+                first_sample = x[0]
+                last_timesteps = x[1:, -1, :]
+                if idx == 0:
+                    generated = torch.cat((first_sample, last_timesteps), dim=0)
                 else:
-                    vari = 0.0
+                    generated = x[:, -1, :]
+                synth_tensor = torch.cat((synth_tensor, generated), dim=0)
 
-                normal_denoising = create_pipelined_noise(test_batch, args).to(device)
-                normal_denoising[:, :, non_hier_cols] = (x[:, :, non_hier_cols] - (
-                        (beta_t / torch.sqrt(1 - alpha_bar_t)) * epsilon_pred)) / torch.sqrt(alpha_t)
-                normal_denoising[:, :, non_hier_cols] += vari
-                masked_binary = mask_batch.int()
-                # x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
-                x[mask_expanded] = normal_denoising[mask_expanded]
-                x[~mask_expanded] = test_batch[~mask_expanded]
-                rolled_x = x.roll(1, 0)
-                x[1:, : args.window_size - 1, :] = rolled_x[1:, 1: args.window_size, :]
-                # if step == 0:
-                #     x[~mask_batch][:, non_hier_cols] = test_batch[~mask_batch][:, non_hier_cols]
-                #     k = x[~mask_batch][:, non_hier_cols]
+        df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
+        real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
+        real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
+        # decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
+        synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
 
-            first_sample = x[0]
-            last_timesteps = x[1:, -1, :]
-            if idx == 0:
-                generated = torch.cat((first_sample, last_timesteps), dim=0)
-            else:
-                generated = x[:, -1, :]
-            synth_tensor = torch.cat((synth_tensor, generated), dim=0)
+        # rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
+        # for col, value in constraints.items():
+        #     column_mask = synth_df_reconverted[col] == value
+        #     rows_to_select_synth &= column_mask
+        rows_to_synth_reset = rows_to_synth.reset_index(drop=True)
+        synth_df_reconverted_selected = synth_df_reconverted[rows_to_synth_reset]
+        synth_df_reconverted_selected = synth_df_reconverted_selected.round(decimal_accuracy)
+        synth_df_reconverted_selected = synth_df_reconverted_selected.reset_index(drop=True)
+        path = f'generated/{args.dataset}/{args.synth_mask}/'
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-    df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
-    real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
-    real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
-    # decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
-    synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
-
-    # rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
-    # for col, value in constraints.items():
-    #     column_mask = synth_df_reconverted[col] == value
-    #     rows_to_select_synth &= column_mask
-    synth_df_reconverted_selected = synth_df_reconverted.loc[rows_to_synth]
-    synth_df_reconverted_selected = synth_df_reconverted_selected.round(decimal_accuracy)
-    synth_df_reconverted_selected = synth_df_reconverted_selected.reset_index(drop=True)
-    path = f'generated/{args.dataset}/{args.synth_mask}/'
-    if not os.path.exists(path):
-        os.makedirs(path)
-    real_df_reconverted.to_csv(f'{path}real.csv')
-    synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
-    if args.propCycEnc:
-        synth_df_reconverted_selected.to_csv(f'{path}synth_dnq_stride_{args.stride}_prop.csv')
-    else:
-        synth_df_reconverted_selected.to_csv(f'{path}synth_dnq_stride_{args.stride}.csv')
+        if not os.path.exists(f'{path}real.csv'):
+            real_df_reconverted.to_csv(f'{path}real.csv')
+        synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
+        if args.propCycEnc:
+            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_{args.stride}_trial_{trial}_prop.csv')
+        else:
+            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_{args.stride}_trial_{trial}.csv')
