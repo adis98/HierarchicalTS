@@ -130,6 +130,7 @@ if __name__ == "__main__":
             synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
             for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
                 x = create_pipelined_noise(test_batch, args).to(device)
+                x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
                 print(f'batch: {idx} of {len(test_dataloader)}')
                 for step in range(diffusion_config['T'] - 1, -1, -1):
                     test_batch = test_batch.to(device)
@@ -146,8 +147,9 @@ if __name__ == "__main__":
                     mask_expanded = torch.zeros_like(test_batch, dtype=bool)
                     for channel in non_hier_cols:
                         mask_expanded[:, :, channel] = mask_batch
-                    x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
+
                     x[~mask_expanded] = cached_denoising[~mask_expanded]
+                    x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
                     epsilon_pred = model(x, times)
                     epsilon_pred = epsilon_pred.permute((0, 2, 1))
                     if step > 0:
