@@ -95,10 +95,7 @@ if __name__ == "__main__":
             optimizer.step()
         print(f'epoch: {epoch}, loss: {total_loss}')
     path = f'saved_models/{args.dataset}/'
-    if args.propCycEnc:
-        filename = "model_prop.pth"
-    else:
-        filename = "model.pth"
+    filename = "model_ordinal.pth"
     filepath = os.path.join(path, filename)
 
     if not os.path.exists(path):
