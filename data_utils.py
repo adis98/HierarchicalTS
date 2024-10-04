@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import numpy as np
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 
 pd.set_option('future.no_silent_downcasting', True)
 
@@ -20,7 +20,7 @@ class CyclicEncoder:
         self.categories = df[name].unique()
         counts = df[name].value_counts(dropna=False)
         total_counts = counts.sum()
-        angles = (counts/total_counts) * 2 * np.pi
+        angles = (counts / total_counts) * 2 * np.pi
         cumulative_angles = angles.cumsum() - (angles / 2)
         temp = counts.index.values
         """
@@ -154,7 +154,7 @@ class Preprocessor:
         elif name == 'MetroTraffic':
             if self.cyclic_encoded_columns is None:
                 self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
-                                           'weather_description']
+                                               'weather_description']
 
         df_cyclic = self.cyclicEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 
@@ -163,9 +163,9 @@ class Preprocessor:
                                   col not in self.cyclic_encoded_columns and '_sine' not in col and '_cos' not in col]
 
         if hasattr(self.scaler, 'mean_') and hasattr(self.scaler, 'scale_'):
-            df_cyclic[self.cols_to_scale] = self.scaler.transform(df[self.cols_to_scale])
+            df_cyclic[self.cols_to_scale] = self.scaler.transform(df_cyclic[self.cols_to_scale])
         else:
-            df_cyclic[self.cols_to_scale] = self.scaler.fit_transform(df[self.cols_to_scale])
+            df_cyclic[self.cols_to_scale] = self.scaler.fit_transform(df_cyclic[self.cols_to_scale])
         return df_cyclic
 
     def cyclicEncode(self, df):
@@ -191,6 +191,109 @@ class Preprocessor:
         df_mod = dataframe.copy()
         for column in self.cyclic_encoded_columns:
             df_mod = self.encoders[column].decode(df_mod)
+        if rescale:
+            df_mod[self.cols_to_scale] = self.scaler.inverse_transform(df_mod[self.cols_to_scale])
+
+        for col in df_mod.columns:
+            df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
+        return df_mod
+
+    def scale(self, df):
+        df_scaled = df.copy()
+        df_scaled[self.cols_to_scale] = self.scaler.transform(df_scaled[self.cols_to_scale])
+        return df_scaled
+
+    def rescale(self, df):
+        df_rescaled = df.copy()
+        df_rescaled[self.cols_to_scale] = self.scaler.inverse_transform(df_rescaled[self.cols_to_scale])
+        return df_rescaled
+
+
+class PreprocessorOrdinal:
+    def __init__(self, name):
+        self.cols_to_scale = None
+        self.encoded_columns = None
+        self.encoder = None
+        self.hierarchical_features = []
+        self.scaler = StandardScaler()
+        self.df_orig = self.fetchDataset(name, False)
+        self.column_dtypes = self.df_orig.dtypes.to_dict()
+        self.df_cleaned = self.fetchDataset(name, True)
+        self.train_indices = None
+        self.test_indices = None
+        if name == "MetroTraffic":
+            self.test_indices = self.df_orig.index[self.df_orig['year'] == 2018].to_list()
+            self.train_indices = self.df_orig.index[self.df_orig['year'] != 2018].to_list()
+
+    def fetchDataset(self, name, return_cleaned):
+        if name != "BeijingAirQuality":
+            df = pd.read_csv(datasets[name])
+            if name == "MetroTraffic":
+                df['date_time'] = pd.to_datetime(df['date_time'])
+                df['year'] = df['date_time'].dt.year
+                df['month'] = df['date_time'].dt.month
+                df['day'] = df['date_time'].dt.day
+                df['hour'] = df['date_time'].dt.hour
+                df.drop(columns=['date_time'], inplace=True)
+                self.hierarchical_features = ['year', 'month', 'day', 'hour']
+
+        else:
+            dfs = []
+            csvs = os.listdir(datasets[name])
+            for file in csvs:
+                dfs.append(pd.read_csv(datasets[name] + "/" + file))
+            df = pd.concat(dfs)
+            df.drop(columns=['No'], inplace=True)  # redundant
+
+        if return_cleaned:
+            df_cleaned = self.cleanDataset(name, df)
+            return df_cleaned
+
+        else:
+            return df
+
+    def cleanDataset(self, name, df):
+        """Beijing Air Quality has some missing values for the sensor data"""
+        df_clean = df.copy()
+        if name == "BeijingAirQuality":
+            for column in df_clean.columns:
+                if df_clean[column].dtype != 'object':
+                    df_clean[column] = df_clean[column].interpolate()
+            if self.encoded_columns is None:
+                self.encoded_columns = ['year', 'month', 'day', 'hour', 'wd', 'station']
+
+        elif name == 'MetroTraffic':
+            if self.encoded_columns is None:
+                self.encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
+                                        'weather_description']
+
+        df_encoded = self.ordinalEncode(df_clean)  # returns the dataframe with cyclic encoding applied
+
+        if self.cols_to_scale is None:
+            self.cols_to_scale = [col for col in df_encoded.columns]
+
+        if hasattr(self.scaler, 'mean_') and hasattr(self.scaler, 'scale_'):
+            df_encoded[self.cols_to_scale] = self.scaler.transform(df_encoded[self.cols_to_scale])
+        else:
+            df_encoded[self.cols_to_scale] = self.scaler.fit_transform(df_encoded[self.cols_to_scale])
+        return df_encoded
+
+    def ordinalEncode(self, df):
+        df_copy = df.copy()
+        if self.encoder is None:
+            self.encoder = OrdinalEncoder().set_params(encoded_missing_value=-1)
+            self.encoder.fit(df_copy[self.encoded_columns].values)
+        df_copy[self.encoded_columns] = self.encoder.transform(df_copy[self.encoded_columns].values)
+        return df_copy
+
+    def ordinalDecode(self, df):
+        df_copy = df.copy()
+        df_copy[self.encoded_columns] = self.encoder.inverse_transform(df_copy[self.encoded_columns])
+        return df_copy
+
+    def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded
+        df_mod = dataframe.copy()
+        df_mod[self.encoded_columns] = self.encoder.inverse_transform(df_mod[self.encoded_columns])
         if rescale:
             df_mod[self.cols_to_scale] = self.scaler.inverse_transform(df_mod[self.cols_to_scale])
 
@@ -324,5 +427,3 @@ class PreprocessorOneHot:
         df_rescaled = df.copy()
         df_rescaled[self.cols_to_scale] = self.scaler.inverse_transform(df_rescaled[self.cols_to_scale])
         return df_rescaled
-
-
