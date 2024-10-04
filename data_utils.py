@@ -288,15 +288,14 @@ class PreprocessorOrdinal:
 
     def ordinalDecode(self, df):
         df_copy = df.copy()
-        df_copy[self.encoded_columns] = self.encoder.inverse_transform(df_copy[self.encoded_columns])
+        df_copy[self.encoded_columns] = self.encoder.inverse_transform(df_copy[self.encoded_columns].values)
         return df_copy
 
     def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded
         df_mod = dataframe.copy()
-        df_mod[self.encoded_columns] = self.encoder.inverse_transform(df_mod[self.encoded_columns])
         if rescale:
             df_mod[self.cols_to_scale] = self.scaler.inverse_transform(df_mod[self.cols_to_scale])
-
+        df_mod[self.encoded_columns] = self.encoder.inverse_transform(df_mod[self.encoded_columns])
         for col in df_mod.columns:
             df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
         return df_mod
