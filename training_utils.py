@@ -5,7 +5,6 @@ from data_utils import datasets, CyclicEncoder, Preprocessor
 from copy import deepcopy
 import argparse
 import numpy as np
-from diffusion_backbones import BiLinearDiffusionBackbone, TransformerDiffusionBackbone
 import torch.optim as optim
 from torch import nn, from_numpy
 from torch.utils.data import Dataset, DataLoader
@@ -26,11 +25,7 @@ class MyDataset(Dataset):
 
 def fetchModel(in_features, out_features, args):
     model = None
-    if args.backbone.lower() == 'bilinear':
-        model = BiLinearDiffusionBackbone(in_dim=in_features, t_dim=1, h_dim=args.hdim, n_layers=args.layers)
-    elif args.backbone.lower() == 'transformer':
-        model = TransformerDiffusionBackbone(in_dim=in_features, t_dim=1, h_dim=args.hdim, n_layers=args.layers)
-    elif args.backbone.lower() == 's4':
+    if args.backbone.lower() == 's4':
         model = SSSDS4Imputer(in_features, args.res_channels, args.skip_channels,
                               out_features, args.num_res_layers, args.diff_step_embed_in,
                               args.diff_step_embed_mid, args.diff_step_embed_out,

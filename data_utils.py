@@ -323,6 +323,18 @@ class PreprocessorOneHot:
         self.df_orig = self.fetchDataset(name, False)
         self.column_dtypes = self.df_orig.dtypes.to_dict()
         self.df_cleaned = self.fetchDataset(name, True)
+        self.one_hot_mapper = {}
+        for col in self.onehot_encoded_columns:
+            feats = []
+            for nm in self.onehot_column_names:
+                if nm.startswith(col):
+                    feats.append(nm)
+            self.one_hot_mapper[col] = feats
+        self.train_indices = None
+        self.test_indices = None
+        if name == "MetroTraffic":
+            self.test_indices = self.df_orig.index[self.df_orig['year'] == 2018].to_list()
+            self.train_indices = self.df_orig.index[self.df_orig['year'] != 2018].to_list()
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
@@ -361,7 +373,7 @@ class PreprocessorOneHot:
             self.onehot_encoded_columns = ['year', 'month', 'day', 'hour', 'wd', 'station']
 
         elif name == 'MetroTraffic':
-            self.onehot_encoded_columns = ['year', 'holiday', 'weather_main',
+            self.onehot_encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
                                            'weather_description']
 
         df_onehot = self.onehotEncode(df_clean)  # returns the dataframe with cyclic encoding applied
@@ -372,9 +384,12 @@ class PreprocessorOneHot:
             else:
                 self.hierarchical_features_onehot.append(feature)
 
-        self.cols_to_scale = [col for col in df_clean.columns if
-                              col not in self.onehot_encoded_columns]
-        df_onehot[self.cols_to_scale] = self.scaler.fit_transform(df[self.cols_to_scale])
+        if self.cols_to_scale is None:
+            self.cols_to_scale = [col for col in df_clean.columns if
+                                  col not in self.onehot_encoded_columns]
+            df_onehot[self.cols_to_scale] = self.scaler.fit_transform(df[self.cols_to_scale])
+        else:
+            df_onehot[self.cols_to_scale] = self.scaler.transform(df[self.cols_to_scale])
         return df_onehot
 
     def onehotEncode(self, df):
@@ -389,7 +404,7 @@ class PreprocessorOneHot:
             for column in self.onehot_encoded_columns:
                 names = []
                 for ohcs in self.onehot_column_names:
-                    if column in ohcs:
+                    if ohcs.startswith(column):
                         names.append(ohcs)
                 self.encoders[column] = names
         return df_copy
@@ -405,6 +420,7 @@ class PreprocessorOneHot:
             df_copy[column] = category.astype(self.column_dtypes[column])
             df_copy = df_copy.drop(columns=self.encoders[column])
 
+        df_copy = df_copy[self.df_orig.columns]
         return df_copy
 
     def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded
@@ -415,6 +431,7 @@ class PreprocessorOneHot:
 
         for col in df_mod.columns:
             df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
+        df_mod = df_mod[self.df_orig.columns]
         return df_mod
 
     def scale(self, df):

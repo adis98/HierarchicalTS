@@ -1,8 +1,8 @@
 import argparse
 
 import torch
-
-from data_utils import Preprocessor
+from autoencoders import TransformerAutoEncoderOneHot
+from data_utils import PreprocessorOneHot
 from training_utils import MyDataset, fetchModel, fetchDiffusionConfig
 import numpy as np
 
@@ -38,18 +38,18 @@ if __name__ == "__main__":
     parser.add_argument('-s4_dropout', type=float, default=0.0)
     parser.add_argument('-s4_bidirectional', type=bool, default=True)
     parser.add_argument('-s4_layernorm', type=bool, default=True)
-    parser.add_argument('-propCycEnc', type=bool, default=False)
+
     args = parser.parse_args()
     dataset = args.dataset
     device = device('cuda' if torch.cuda.is_available() else 'cpu')
-    preprocessor = Preprocessor(dataset, args.propCycEnc)
+    preprocessor = PreprocessorOneHot(dataset)
     df = preprocessor.df_cleaned
     training_df = df.loc[preprocessor.train_indices]
     test_df = df.loc[preprocessor.test_indices]
-    hierarchical_column_indices = training_df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
+    hierarchical_column_indices = training_df.columns.get_indexer(preprocessor.hierarchical_features_onehot)
     training_samples = []
     for i in range(0, len(training_df) - args.window_size + 1, args.stride):
-        window = training_df.iloc[i:i + args.window_size].values
+        window = training_df.iloc[i:i + args.window_size].values.astype(np.float32)
         training_samples.append(window)
 
     in_dim = len(training_df.columns)
@@ -59,13 +59,49 @@ if __name__ == "__main__":
     diffusion_config = fetchDiffusionConfig(args)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.MSELoss()
+    criterion_cep = nn.CrossEntropyLoss()
     dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True)
     all_indices = np.arange(len(training_df.columns))
 
     # Find the indices not in the index_list
     remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
-
+    d_model = 2 * (len(preprocessor.df_orig.columns) - len(preprocessor.hierarchical_features))
+    model_autoenc = TransformerAutoEncoderOneHot(input_dim=len(remaining_indices), d_model=d_model).to(device)
     # Convert to an ndarray
+    optimizer_autoenc = optim.Adam(model_autoenc.parameters(), lr=args.lr)
+    mapper = {}
+    mseindices = np.arange(len(training_df.columns))
+    for col, names in preprocessor.one_hot_mapper.items():
+        mapper[col] = [training_df.columns.get_loc(name) for name in names]
+        mseindices = np.setdiff1d(mseindices, mapper[col])
+    mapper['msecols'] = mseindices
+    """TRAINING AUTOENCODER"""
+    for epoch in range(args.epochs):
+        total_loss = 0.0
+        for batch in dataloader:
+            batch = batch.to(device)
+            outs = model_autoenc(batch[:, :, remaining_indices])
+            loss = 0.0
+            start_index = 0
+            optimizer_autoenc.zero_grad()
+            for col, indices in mapper.items():
+                if col not in preprocessor.hierarchical_features:
+                    last_index = start_index + len(indices)
+                    outs_sel = outs[:, :, start_index:last_index]
+                    if col != 'msecols':
+                        targets = torch.argmax(batch[:, :, indices], dim=-1)
+                        outs_sel = outs_sel.view(-1, outs_sel.size(-1))
+                        targets = targets.view(-1, )
+                        loss += criterion_cep(outs_sel, targets)
+                    else:
+                        loss += len(indices) * criterion(outs_sel, batch[:, :, indices])
+                    start_index = last_index
+
+            loss.backward()
+            total_loss += loss
+            optimizer_autoenc.step()
+        print(f'EPOCH {epoch}, LOSS: {total_loss}')
+
     non_hier_cols = np.array(remaining_indices)
     """TRAINING"""
     for epoch in range(args.epochs):
