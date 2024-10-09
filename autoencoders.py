@@ -46,3 +46,13 @@ class TransformerAutoEncoderOneHot(nn.Module):
         # categorical_output = self.output_projection_categorical(output)
 
         return output
+
+    def encode(self, x):
+        with torch.no_grad():
+            x = self.input_projection(x)
+            return self.encoder(x)
+
+    def decode(self, x):
+        with torch.no_grad():
+            x = self.decoder(x, x)
+            return self.output_projection(x)

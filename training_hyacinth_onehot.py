@@ -52,12 +52,8 @@ if __name__ == "__main__":
         window = training_df.iloc[i:i + args.window_size].values.astype(np.float32)
         training_samples.append(window)
 
-    in_dim = len(training_df.columns)
-    out_dim = len(training_df.columns) - len(hierarchical_column_indices)
     training_dataset = MyDataset(from_numpy(np.array(training_samples)).float())
-    model = fetchModel(in_dim, out_dim, args).to(device)
     diffusion_config = fetchDiffusionConfig(args)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.MSELoss()
     criterion_cep = nn.CrossEntropyLoss()
     dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True)
@@ -102,11 +98,29 @@ if __name__ == "__main__":
             optimizer_autoenc.step()
         print(f'EPOCH {epoch}, LOSS: {total_loss}')
 
-    non_hier_cols = np.array(remaining_indices)
+    latents = None
+    for batch in dataloader:
+        batch = batch.to(device)
+        latent = model_autoenc.encode(batch[:, :, remaining_indices])
+        latent = torch.cat((batch[:, :, hierarchical_column_indices], latent), 2)
+        if latents is None:
+            latents = latent
+        else:
+            latents = torch.cat((latents, latent), 0)
+
+    latent_hierarchical_indices = np.arange(0, len(hierarchical_column_indices))
+    latent_non_hierarchical_indices = np.arange(len(hierarchical_column_indices), latents.shape[2])
+    latent_dataset = MyDataset(latents)
+    latent_dataloader = DataLoader(latent_dataset, batch_size=args.batch_size, shuffle=True)
+
+    in_dim = len(latent_hierarchical_indices) + len(latent_non_hierarchical_indices)
+    out_dim = len(latent_non_hierarchical_indices)
+    model = fetchModel(in_dim, out_dim, args).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     """TRAINING"""
     for epoch in range(args.epochs):
         total_loss = 0.0
-        for batch in dataloader:
+        for batch in latent_dataloader:
             batch = batch.to(device)
             timesteps = randint(diffusion_config['T'], size=(batch.shape[0],)).to(device)
             sigmas = normal(0, 1, size=batch.shape).to(device)
@@ -115,7 +129,7 @@ if __name__ == "__main__":
             coeff_1 = sqrt(alpha_bars[timesteps]).reshape((len(timesteps), 1, 1))
             coeff_2 = sqrt(1 - alpha_bars[timesteps]).reshape((len(timesteps), 1, 1))
             conditional_mask = np.ones(batch.shape)
-            conditional_mask[:, :, non_hier_cols] = 0
+            conditional_mask[:, :, latent_non_hierarchical_indices] = 0
             conditional_mask = from_numpy(conditional_mask).float().to(device)
             batch_noised = (1 - conditional_mask) * (coeff_1 * batch + coeff_2 * sigmas) + conditional_mask * batch
             batch_noised = batch_noised.to(device)
@@ -123,7 +137,7 @@ if __name__ == "__main__":
             # timesteps = timesteps.to(device)
             sigmas_predicted = model(batch_noised, timesteps)
             optimizer.zero_grad()
-            sigmas_permuted = sigmas[:, :, non_hier_cols].permute((0, 2, 1))
+            sigmas_permuted = sigmas[:, :, latent_non_hierarchical_indices].permute((0, 2, 1))
             sigmas_permuted = sigmas_permuted.to(device)
             loss = criterion(sigmas_predicted, sigmas_permuted)
             loss.backward()
@@ -131,12 +145,11 @@ if __name__ == "__main__":
             optimizer.step()
         print(f'epoch: {epoch}, loss: {total_loss}')
     path = f'saved_models/{args.dataset}/'
-    if args.propCycEnc:
-        filename = "model_prop.pth"
-    else:
-        filename = "model.pth"
+    filename = "model_onehot.pth"
     filepath = os.path.join(path, filename)
 
     if not os.path.exists(path):
         os.makedirs(path)
+
+    torch.save(model_autoenc.state_dict(), os.path.join(path, "model_autoenc_onehot.pth"))
     torch.save(model.state_dict(), filepath)
