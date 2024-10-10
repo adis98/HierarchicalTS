@@ -99,14 +99,15 @@ if __name__ == "__main__":
         print(f'EPOCH {epoch}, LOSS: {total_loss}')
 
     latents = None
-    for batch in dataloader:
-        batch = batch.to(device)
-        latent = model_autoenc.encode(batch[:, :, remaining_indices])
-        latent = torch.cat((batch[:, :, hierarchical_column_indices], latent), 2)
-        if latents is None:
-            latents = latent
-        else:
-            latents = torch.cat((latents, latent), 0)
+    with torch.no_grad():
+        for batch in dataloader:
+            batch = batch.to(device)
+            latent = model_autoenc.encode(batch[:, :, remaining_indices])
+            latent = torch.cat((batch[:, :, hierarchical_column_indices], latent), 2)
+            if latents is None:
+                latents = latent
+            else:
+                latents = torch.cat((latents, latent), 0)
 
     latent_hierarchical_indices = np.arange(0, len(hierarchical_column_indices))
     latent_non_hierarchical_indices = np.arange(len(hierarchical_column_indices), latents.shape[2])
