@@ -16,7 +16,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-dataset', '-d', type=str,
                         help='MetroTraffic, BeijingAirQuality, AustraliaTourism, WebTraffic, StoreItems', required=True)
-    parser.add_argument('-backbone', type=str, help='Transformer, Bilinear, Linear, S4', default='S4')
+    parser.add_argument('-backbone', type=str, help='Transformer, S4', default='S4')
     parser.add_argument('-beta_0', type=float, default=0.0001, help='initial variance schedule')
     parser.add_argument('-beta_T', type=float, default=0.02, help='last variance schedule')
     parser.add_argument('-timesteps', '-T', type=int, default=200, help='training/inference timesteps')
