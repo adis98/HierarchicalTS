@@ -218,6 +218,7 @@ class PreprocessorOrdinal:
         self.scaler = StandardScaler()
         self.df_orig = self.fetchDataset(name, False)
         self.column_dtypes = self.df_orig.dtypes.to_dict()
+        self.cats_with_nans = None
         self.df_cleaned = self.fetchDataset(name, True)
         self.train_indices = None
         self.test_indices = None
@@ -284,6 +285,8 @@ class PreprocessorOrdinal:
             self.encoder = OrdinalEncoder().set_params(encoded_missing_value=-1)
             self.encoder.fit(df_copy[self.encoded_columns].values)
         df_copy[self.encoded_columns] = self.encoder.transform(df_copy[self.encoded_columns].values)
+        if self.cats_with_nans is None:
+            self.cats_with_nans = (df_copy == -1).any().to_dict()
         return df_copy
 
     def ordinalDecode(self, df):
@@ -291,10 +294,12 @@ class PreprocessorOrdinal:
         df_copy[self.encoded_columns] = self.encoder.inverse_transform(df_copy[self.encoded_columns].values)
         return df_copy
 
-    def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded
+    def decode(self, dataframe=None, rescale=False, resolve=False):  # without rescaling only the cyclic part is decoded
         df_mod = dataframe.copy()
         if rescale:
             df_mod[self.cols_to_scale] = self.scaler.inverse_transform(df_mod[self.cols_to_scale])
+        if resolve:
+            df_mod[self.encoded_columns] = self.threshold_vals(df_mod, self.encoded_columns)
         df_mod[self.encoded_columns] = self.encoder.inverse_transform(df_mod[self.encoded_columns])
         for col in df_mod.columns:
             df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
@@ -309,6 +314,29 @@ class PreprocessorOrdinal:
         df_rescaled = df.copy()
         df_rescaled[self.cols_to_scale] = self.scaler.inverse_transform(df_rescaled[self.cols_to_scale])
         return df_rescaled
+
+    def threshold_vals(self, df, encoded_columns):
+        num_categories = []
+        lowers = []
+        for i in range(len(encoded_columns)):
+            cats = len(self.encoder.categories_[i])
+            if self.cats_with_nans[encoded_columns[i]]:
+                cats -= 1
+                lowers.append(-1)
+            else:
+                lowers.append(0)
+            num_categories.append(cats)
+        df_copy = df[encoded_columns]
+        df_copy = df_copy.round()
+        df_copy = df_copy.clip(lower=lowers, upper=[n - 1 for n in num_categories])
+        return df_copy
+
+
+def resolve_dummies(row):
+    first_one = row.idxmax()  # Get the index of the first maximum (1 in this case)
+    row[:] = 0.0  # Reset all values to 0
+    row[first_one] = 1.0  # Set the first 1's column to 1
+    return row
 
 
 class PreprocessorOneHot:
@@ -409,11 +437,13 @@ class PreprocessorOneHot:
                 self.encoders[column] = names
         return df_copy
 
-    def onehotDecode(self, df):
+    def onehotDecode(self, df, resolve):
         df_copy = df.copy()
         for column in self.encoders.keys():
             df_select = df_copy[self.encoders[column]]
             sep_str = f'{column}_'
+            if resolve:
+                df_select = df_select.apply(resolve_dummies, axis=1)
             category = pd.from_dummies(df_select, sep=sep_str)
             if self.column_dtypes[column] != 'object':
                 category = category.apply(pd.to_numeric)
@@ -423,9 +453,9 @@ class PreprocessorOneHot:
         df_copy = df_copy[self.df_orig.columns]
         return df_copy
 
-    def decode(self, dataframe=None, rescale=False):  # without rescaling only the cyclic part is decoded
+    def decode(self, dataframe=None, rescale=False, resolve=False):  # without rescaling only the cyclic part is decoded
         df_mod = dataframe.copy()
-        df_mod = self.onehotDecode(df_mod)
+        df_mod = self.onehotDecode(df_mod, resolve)
         if rescale:
             df_mod[self.cols_to_scale] = self.scaler.inverse_transform(df_mod[self.cols_to_scale])
 

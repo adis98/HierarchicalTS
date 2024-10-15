@@ -61,7 +61,7 @@ if __name__ == "__main__":
     #  Add some more samples form the training set as additional context for synthesis
     test_df = df.loc[preprocessor.train_indices[-args.window_size:] + preprocessor.test_indices]
     hierarchical_column_indices = test_df.columns.get_indexer(preprocessor.hierarchical_features_onehot)
-    test_df_with_hierarchy = preprocessor.decode(test_df, rescale=True)
+    test_df_with_hierarchy = preprocessor.decode(test_df, rescale=True, resolve=False)
     decimal_accuracy_orig = preprocessor.df_orig.apply(decimal_places).to_dict()
     decimal_accuracy_processed = test_df_with_hierarchy.apply(decimal_places).to_dict()
     decimal_accuracy = {}
@@ -121,14 +121,14 @@ if __name__ == "__main__":
         with torch.no_grad():
             synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
             for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
+                test_batch = test_batch.to(device)
+                mask_batch = mask_batch.to(device)
                 latent_test_batch = model_autoenc.encode(test_batch[:, :, remaining_indices])
                 latent_test_batch = torch.cat((test_batch[:, :, hierarchical_column_indices], latent_test_batch), 2)
                 x = create_pipelined_noise(latent_test_batch, args).to(device)
                 x[:, :, latent_hierarchical_indices] = latent_test_batch[:, :, latent_hierarchical_indices]
                 print(f'batch: {idx} of {len(test_dataloader)}')
                 for step in range(diffusion_config['T'] - 1, -1, -1):
-                    latent_test_batch = latent_test_batch.to(device)
-                    mask_batch = mask_batch.to(device)
                     print(f"backward step: {step}")
                     times = torch.full(size=(latent_test_batch.shape[0], 1), fill_value=step).to(device)
                     alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
@@ -167,27 +167,21 @@ if __name__ == "__main__":
                     #     x[~mask_batch][:, non_hier_cols] = test_batch[~mask_batch][:, non_hier_cols]
                     #     k = x[~mask_batch][:, non_hier_cols]
 
-                first_sample = x[0]
-                last_timesteps = x[1:, -1, :]
+                x_decoded = model_autoenc.decode(x[:, :, latent_non_hierarchical_indices])
+                x_decoded = torch.cat((x[:, :, latent_hierarchical_indices], x_decoded), dim=2)
+                first_sample = x_decoded[0]
+                last_timesteps = x_decoded[1:, -1, :]
                 if idx == 0:
-                    generated_latent = torch.cat((first_sample, last_timesteps), dim=0)
-                    generated_decoded = model_autoenc.decode(generated_latent[:, :, latent_non_hierarchical_indices])
-                    generated = torch.zeros_like(x).to(device)
-                    generated[:, :, non_hier_cols] = generated_decoded
-                    generated[:, :, hierarchical_column_indices] = generated_decoded[:, :, latent_hierarchical_indices]
+                    generated = torch.cat((first_sample, last_timesteps), dim=0)
                 else:
-                    generated_latent = x[:, -1, :]
-                    generated_decoded = model_autoenc.decode(generated_latent[:, :, latent_non_hierarchical_indices])
-                    generated = torch.zeros_like(x).to(device)
-                    generated[:, :, non_hier_cols] = generated_decoded
-                    generated[:, :, hierarchical_column_indices] = generated_decoded[:, :, latent_hierarchical_indices]
+                    generated = x_decoded[:, -1, :]
                 synth_tensor = torch.cat((synth_tensor, generated), dim=0)
 
         df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
         real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
         real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
         # decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
-        synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
+        synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True, resolve=True)
 
         # rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
         # for col, value in constraints.items():
@@ -204,4 +198,4 @@ if __name__ == "__main__":
         if not os.path.exists(f'{path}real.csv'):
             real_df_reconverted.to_csv(f'{path}real.csv')
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
-        synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_{args.stride}_trial_{trial}_ordinal.csv')
+        synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_{args.stride}_trial_{trial}_onehot.csv')

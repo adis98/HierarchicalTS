@@ -34,52 +34,92 @@ if __name__ == "__main__":
     preprocessor = Preprocessor(dataset, args.propCycEnc)
     df = preprocessor.df_cleaned
 
-    train_df_with_hierarchy = preprocessor.df_orig.copy()
+    test_df = df.loc[preprocessor.train_indices[-args.window_size:] + preprocessor.test_indices]
+    test_df_with_hierarchy = preprocessor.cyclicDecode(test_df)
     decimal_accuracy_orig = preprocessor.df_orig.apply(decimal_places).to_dict()
-    decimal_accuracy_processed = train_df_with_hierarchy.apply(decimal_places).to_dict()
+    decimal_accuracy_processed = test_df_with_hierarchy.apply(decimal_places).to_dict()
     decimal_accuracy = {}
     for key in decimal_accuracy_processed.keys():
         decimal_accuracy[key] = decimal_accuracy_orig[key]
-    test_df_with_hierarchy = train_df_with_hierarchy.copy()
-    constraints = {'year': 2013}  # determines which rows need synthetic data
-    metadata = metaSynthTimeWeaver(constraints, preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
-    rows_in_real = pd.Series([True] * len(train_df_with_hierarchy))
-    for key in constraints.keys():
-        rows_in_real &= train_df_with_hierarchy[key] == constraints[key]
 
-    real_df = train_df_with_hierarchy.loc[rows_in_real]
-    df_synth = metadata.copy()
-    df_synth = preprocessor.cyclicEncode(df_synth)
-    rows_to_synth = pd.Series([True] * len(metadata))
+    metadata = test_df_with_hierarchy[preprocessor.hierarchical_features_uncyclic]
+    rows_to_synth = metadataMask(metadata, args.synth_mask, args.dataset)
+    """
+    # train_df_with_hierarchy = preprocessor.df_orig.copy()
+    # decimal_accuracy_orig = preprocessor.df_orig.apply(decimal_places).to_dict()
+    # decimal_accuracy_processed = train_df_with_hierarchy.apply(decimal_places).to_dict()
+    # decimal_accuracy = {}
+    # for key in decimal_accuracy_processed.keys():
+    #     decimal_accuracy[key] = decimal_accuracy_orig[key]
+    # test_df_with_hierarchy = train_df_with_hierarchy.copy()
+    # constraints = {'year': 2013}  # determines which rows need synthetic data
+    # metadata = metaSynthTimeWeaver(constraints, preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
+    # rows_in_real = pd.Series([True] * len(train_df_with_hierarchy))
+    # for key in constraints.keys():
+    #     rows_in_real &= train_df_with_hierarchy[key] == constraints[key]
+    # 
+    # real_df = train_df_with_hierarchy.loc[rows_in_real]
+    # df_synth = metadata.copy()
+    # df_synth = preprocessor.cyclicEncode(df_synth)
+    # rows_to_synth = pd.Series([True] * len(metadata))
+    # test_samples = []
+    # mask_samples = []
+    # d_vals = df_synth.values
+    # m_vals = rows_to_synth.values
+    # d_vals_tensor = from_numpy(d_vals)
+    # m_vals_tensor = from_numpy(m_vals)
+    # windows = d_vals_tensor.unfold(0, args.window_size, args.window_size).transpose(1, 2)
+    # last_index_start = len(d_vals) - len(d_vals) % args.window_size
+    # window_final = d_vals_tensor[last_index_start:].unsqueeze(0)
+    # masks = m_vals_tensor.unfold(0, args.window_size, args.window_size)
+    # masks_final = m_vals_tensor[last_index_start:]
+    # condition = torch.any(masks, dim=1)
+    # windows = windows[condition]
+    # masks = masks[condition]
+    # hierarchical_column_indices = df_synth.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
+    # all_indices = np.arange(len(df_synth.columns))
+    # remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
+    # non_hier_cols = np.array(remaining_indices)
+    # in_dim = len(df_synth.columns) - len(hierarchical_column_indices)
+    # args.in_dim = in_dim
+    # args.embed_dim = in_dim-1
+    # args.cond_dim = len(hierarchical_column_indices)
+    # out_dim = len(df_synth.columns) - len(hierarchical_column_indices)
+    # test_dataset = MyDataset(windows.float())
+    # mask_dataset = MyDataset(masks)
+    # test_dataset_final = MyDataset(window_final.float())
+    # mask_dataset_final = MyDataset(masks_final)
+    # test_final_dataloader = DataLoader(test_dataset_final, batch_size=args.batch_size)
+    # mask_final_dataloader = DataLoader(mask_dataset_final, batch_size=args.batch_size)"""
+    real_df = test_df_with_hierarchy[rows_to_synth]
+    df_synth = test_df.copy()
+    """Approach 1: Divide and conquer"""
     test_samples = []
     mask_samples = []
     d_vals = df_synth.values
     m_vals = rows_to_synth.values
+
     d_vals_tensor = from_numpy(d_vals)
     m_vals_tensor = from_numpy(m_vals)
-    windows = d_vals_tensor.unfold(0, args.window_size, args.window_size).transpose(1, 2)
-    last_index_start = len(d_vals) - len(d_vals) % args.window_size
-    window_final = d_vals_tensor[last_index_start:].unsqueeze(0)
-    masks = m_vals_tensor.unfold(0, args.window_size, args.window_size)
-    masks_final = m_vals_tensor[last_index_start:]
+    windows = d_vals_tensor.unfold(0, args.window_size, 1).transpose(1, 2)
+    masks = m_vals_tensor.unfold(0, args.window_size, 1)
     condition = torch.any(masks, dim=1)
-    windows = windows[condition]
-    masks = masks[condition]
     hierarchical_column_indices = df_synth.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
-    all_indices = np.arange(len(df_synth.columns))
-    remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
-    non_hier_cols = np.array(remaining_indices)
-    in_dim = len(df_synth.columns) - len(hierarchical_column_indices)
-    args.in_dim = in_dim
-    args.embed_dim = in_dim-1
-    args.cond_dim = len(hierarchical_column_indices)
+    in_dim = len(df_synth.columns)
     out_dim = len(df_synth.columns) - len(hierarchical_column_indices)
     test_dataset = MyDataset(windows.float())
     mask_dataset = MyDataset(masks)
-    test_dataset_final = MyDataset(window_final.float())
-    mask_dataset_final = MyDataset(masks_final)
-    test_final_dataloader = DataLoader(test_dataset_final, batch_size=args.batch_size)
-    mask_final_dataloader = DataLoader(mask_dataset_final, batch_size=args.batch_size)
+    model = fetchModel(in_dim, out_dim, args).to(device)
+    diffusion_config = fetchDiffusionConfig(args)
+    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size)
+    mask_dataloader = DataLoader(mask_dataset, batch_size=args.batch_size)
+    all_indices = np.arange(len(df_synth.columns))
+    #
+    # # Find the indices not in the index_list
+    remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
+    #
+    # # Convert to an ndarray
+    non_hier_cols = np.array(remaining_indices)
     model = fetchModel(in_dim, out_dim, args).to(device)
     if args.propCycEnc:
         saved_params = torch.load(f'saved_models/{args.dataset}/model_timegan_prop.pth', map_location=device)
@@ -90,8 +130,6 @@ if __name__ == "__main__":
             param.copy_(saved_params[name])
             param.requires_grad = False
     model.eval()
-    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size)
-    mask_dataloader = DataLoader(mask_dataset, batch_size=args.batch_size)
 
     with torch.no_grad():
         synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)

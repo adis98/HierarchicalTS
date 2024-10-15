@@ -115,7 +115,7 @@ if __name__ == "__main__":
     # # Convert to an ndarray
     non_hier_cols = np.array(remaining_indices)
 
-    saved_params = torch.load(f'saved_models/{args.dataset}/model.pth', map_location=device)
+    saved_params = torch.load(f'saved_models/{args.dataset}/model_ordinal.pth', map_location=device)
     with torch.no_grad():
         for name, param in model.named_parameters():
             param.copy_(saved_params[name])
@@ -126,12 +126,12 @@ if __name__ == "__main__":
         with torch.no_grad():
             synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
             for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
+                test_batch = test_batch.to(device)
+                mask_batch = mask_batch.to(device)
                 x = create_pipelined_noise(test_batch, args).to(device)
                 x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
                 print(f'batch: {idx} of {len(test_dataloader)}')
                 for step in range(diffusion_config['T'] - 1, -1, -1):
-                    test_batch = test_batch.to(device)
-                    mask_batch = mask_batch.to(device)
                     print(f"backward step: {step}")
                     times = torch.full(size=(test_batch.shape[0], 1), fill_value=step).to(device)
                     alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
@@ -179,10 +179,10 @@ if __name__ == "__main__":
                 synth_tensor = torch.cat((synth_tensor, generated), dim=0)
 
         df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
-        real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
+        real_df_reconverted = real_df.reset_index(drop=True)
         real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
         # decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
-        synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
+        synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True, resolve=True)
 
         # rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
         # for col, value in constraints.items():
@@ -199,4 +199,4 @@ if __name__ == "__main__":
         if not os.path.exists(f'{path}real.csv'):
             real_df_reconverted.to_csv(f'{path}real.csv')
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
-        synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_{args.stride}_trial_{trial}_ordinal.csv')
+        synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_trial_{trial}_ordinal.csv')

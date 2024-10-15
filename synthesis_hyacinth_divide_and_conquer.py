@@ -33,7 +33,6 @@ if __name__ == "__main__":
     parser.add_argument('-hdim', type=int, default=64, help='hidden embedding dimension')
     parser.add_argument('-lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('-batch_size', type=int, help='batch size', default=1024)
-    parser.add_argument('-epochs', type=int, default=1000, help='training epochs')
     parser.add_argument('-layers', type=int, default=4, help='number of hidden layers')
     parser.add_argument('-window_size', type=int, default=32, help='the size of the training windows')
     parser.add_argument('-stride', type=int, default=1, help='the stride length to shift the training window by')
@@ -129,12 +128,12 @@ if __name__ == "__main__":
         with torch.no_grad():
             synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
             for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
+                test_batch = test_batch.to(device)
+                mask_batch = mask_batch.to(device)
                 x = create_pipelined_noise(test_batch, args).to(device)
                 x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
                 print(f'batch: {idx} of {len(test_dataloader)}')
                 for step in range(diffusion_config['T'] - 1, -1, -1):
-                    test_batch = test_batch.to(device)
-                    mask_batch = mask_batch.to(device)
                     print(f"backward step: {step}")
                     times = torch.full(size=(test_batch.shape[0], 1), fill_value=step).to(device)
                     alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
@@ -203,6 +202,6 @@ if __name__ == "__main__":
             real_df_reconverted.to_csv(f'{path}real.csv')
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
         if args.propCycEnc:
-            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_{args.stride}_trial_{trial}_prop.csv')
+            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_trial_{trial}_cycProp.csv')
         else:
-            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_{args.stride}_trial_{trial}.csv')
+            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_trial_{trial}_cycStd.csv')

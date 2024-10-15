@@ -10,10 +10,10 @@ class TransformerAutoEncoderOneHot(nn.Module):
 
         # Positional encoding for sequence data
         # Transformer encoder and decoder layers
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, dim_feedforward=d_model * 2)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, dim_feedforward=d_model * 2, batch_first=True)
         self.encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_encoder_layers)
 
-        self.decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=n_heads, dim_feedforward=d_model * 2)
+        self.decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=n_heads, dim_feedforward=d_model * 2, batch_first=True)
         self.decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=num_decoder_layers)
 
         # Input and output projections
