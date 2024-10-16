@@ -108,8 +108,16 @@ class Preprocessor:
         self.train_indices = None
         self.test_indices = None
         if name == "MetroTraffic":
-            self.test_indices = self.df_orig.index[self.df_orig['year'] == 2018].to_list()
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2018])].to_list()
             self.train_indices = self.df_orig.index[self.df_orig['year'] != 2018].to_list()
+        elif name == "BeijingAirQuality":
+            temp = self.df_orig['year'].isin([2016, 2017])
+            self.test_indices = temp.loc[temp].index.to_list()
+            temp_c = ~temp
+            self.train_indices = temp_c.loc[temp_c].index.to_list()
+        elif name == "AustraliaTourism":
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])]
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])]
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
@@ -122,14 +130,25 @@ class Preprocessor:
                 df['hour'] = df['date_time'].dt.hour
                 df.drop(columns=['date_time'], inplace=True)
                 self.hierarchical_features_uncyclic = ['year', 'month', 'day', 'hour']
+            elif name == "AustraliaTourism":
+                df['date_time'] = pd.to_datetime(df['Quarter'])
+                df['year'] = df['date_time'].dt.year
+                df['month'] = df['date_time'].dt.month
+                df['day'] = df['date_time'].dt.day
+                df['hour'] = df['date_time'].dt.hour
+                df.drop(columns=['date_time', 'day', 'hour', 'Quarter', 'Unnamed: 0'], inplace=True)
+                df = df.sort_values(by=['year', 'month', 'State', 'Region', 'Purpose']).reset_index(drop=True)
+                self.hierarchical_features_uncyclic = ['year', 'month', 'State', 'Region', 'Purpose']
 
         else:
             dfs = []
             csvs = os.listdir(datasets[name])
             for file in csvs:
                 dfs.append(pd.read_csv(datasets[name] + "/" + file))
-            df = pd.concat(dfs)
+            df = pd.concat(dfs, ignore_index=True)
             df.drop(columns=['No'], inplace=True)  # redundant
+            self.hierarchical_features_uncyclic = ['year', 'station', 'month', 'day', 'hour']
+            df = df.sort_values(by=self.hierarchical_features_uncyclic)
 
         if return_cleaned:
             df_cleaned = self.cleanDataset(name, df)
@@ -155,6 +174,9 @@ class Preprocessor:
             if self.cyclic_encoded_columns is None:
                 self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
                                                'weather_description']
+        elif name == "AustraliaTourism":
+            if self.cyclic_encoded_columns is None:
+                self.cyclic_encoded_columns = ['State', 'Region', 'Purpose', 'year', 'month']
 
         df_cyclic = self.cyclicEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 
@@ -225,6 +247,9 @@ class PreprocessorOrdinal:
         if name == "MetroTraffic":
             self.test_indices = self.df_orig.index[self.df_orig['year'] == 2018].to_list()
             self.train_indices = self.df_orig.index[self.df_orig['year'] != 2018].to_list()
+        elif name == "AustraliaTourism":
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])]
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])]
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
@@ -237,6 +262,15 @@ class PreprocessorOrdinal:
                 df['hour'] = df['date_time'].dt.hour
                 df.drop(columns=['date_time'], inplace=True)
                 self.hierarchical_features = ['year', 'month', 'day', 'hour']
+            elif name == "AustraliaTourism":
+                df['date_time'] = pd.to_datetime(df['Quarter'])
+                df['year'] = df['date_time'].dt.year
+                df['month'] = df['date_time'].dt.month
+                df['day'] = df['date_time'].dt.day
+                df['hour'] = df['date_time'].dt.hour
+                df.drop(columns=['date_time', 'day', 'hour', 'Quarter', 'Unnamed: 0'], inplace=True)
+                df = df.sort_values(by=['year', 'month', 'State', 'Region', 'Purpose']).reset_index(drop=True)
+                self.hierarchical_features = ['year', 'month', 'State', 'Region', 'Purpose']
 
         else:
             dfs = []
@@ -267,6 +301,9 @@ class PreprocessorOrdinal:
             if self.encoded_columns is None:
                 self.encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
                                         'weather_description']
+        elif name == "AustraliaTourism":
+            if self.encoded_columns is None:
+                self.encoded_columns = ['State', 'Region', 'Purpose', 'year', 'month']
 
         df_encoded = self.ordinalEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 
@@ -363,6 +400,9 @@ class PreprocessorOneHot:
         if name == "MetroTraffic":
             self.test_indices = self.df_orig.index[self.df_orig['year'] == 2018].to_list()
             self.train_indices = self.df_orig.index[self.df_orig['year'] != 2018].to_list()
+        elif name == "AustraliaTourism":
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])]
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])]
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
@@ -375,6 +415,15 @@ class PreprocessorOneHot:
                 df['hour'] = df['date_time'].dt.hour
                 df.drop(columns=['date_time'], inplace=True)
                 self.hierarchical_features = ['year', 'month', 'day', 'hour']
+            elif name == "AustraliaTourism":
+                df['date_time'] = pd.to_datetime(df['Quarter'])
+                df['year'] = df['date_time'].dt.year
+                df['month'] = df['date_time'].dt.month
+                df['day'] = df['date_time'].dt.day
+                df['hour'] = df['date_time'].dt.hour
+                df.drop(columns=['date_time', 'day', 'hour', 'Quarter', 'Unnamed: 0'], inplace=True)
+                df = df.sort_values(by=['year', 'month', 'State', 'Region', 'Purpose']).reset_index(drop=True)
+                self.hierarchical_features = ['year', 'month', 'State', 'Region', 'Purpose']
 
         else:
             dfs = []
@@ -403,6 +452,8 @@ class PreprocessorOneHot:
         elif name == 'MetroTraffic':
             self.onehot_encoded_columns = ['year', 'month', 'day', 'hour', 'holiday', 'weather_main',
                                            'weather_description']
+        elif name == "AustraliaTourism":
+            self.onehot_encoded_columns = ['State', 'Region', 'Purpose', 'year', 'month']
 
         df_onehot = self.onehotEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 
