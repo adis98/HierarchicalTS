@@ -35,3 +35,10 @@ def metadataMask(metadata, synthmask, dataset):
             return (metadata['year'] == 2018) & (metadata['day'] == 15)
         elif synthmask == "F":
             return (metadata['year'] == 2018) & (metadata['hour'] == 6)
+    elif dataset == "AustraliaTourism":
+        if synthmask == "C":
+            return metadata['year'] == 2016
+        elif synthmask == "M":
+            return (metadata['year'] == 2016) & (metadata['State'] == 'Queensland')
+        elif synthmask == 'F':
+            return (metadata['year'] == 2016) & (metadata['Purpose'] == 'Holiday')

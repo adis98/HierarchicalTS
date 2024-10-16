@@ -116,8 +116,8 @@ class Preprocessor:
             temp_c = ~temp
             self.train_indices = temp_c.loc[temp_c].index.to_list()
         elif name == "AustraliaTourism":
-            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])]
-            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])]
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])].to_list()
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])].to_list()
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
@@ -248,8 +248,8 @@ class PreprocessorOrdinal:
             self.test_indices = self.df_orig.index[self.df_orig['year'] == 2018].to_list()
             self.train_indices = self.df_orig.index[self.df_orig['year'] != 2018].to_list()
         elif name == "AustraliaTourism":
-            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])]
-            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])]
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])].to_list()
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])].to_list()
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
@@ -401,8 +401,8 @@ class PreprocessorOneHot:
             self.test_indices = self.df_orig.index[self.df_orig['year'] == 2018].to_list()
             self.train_indices = self.df_orig.index[self.df_orig['year'] != 2018].to_list()
         elif name == "AustraliaTourism":
-            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])]
-            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])]
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2016])].to_list()
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2016])].to_list()
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
