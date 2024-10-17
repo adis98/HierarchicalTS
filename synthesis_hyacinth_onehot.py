@@ -175,6 +175,10 @@ if __name__ == "__main__":
                     generated = torch.cat((first_sample, last_timesteps), dim=0)
                 else:
                     generated = x_decoded[:, -1, :]
+                temp_hierarchy = generated[:, :len(hierarchical_column_indices)].clone()
+                temp_non_hierarchy = generated[:, len(hierarchical_column_indices):].clone()
+                generated[:, remaining_indices] = temp_non_hierarchy
+                generated[:, hierarchical_column_indices] = temp_hierarchy
                 synth_tensor = torch.cat((synth_tensor, generated), dim=0)
 
         df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
@@ -198,4 +202,4 @@ if __name__ == "__main__":
         if not os.path.exists(f'{path}real.csv'):
             real_df_reconverted.to_csv(f'{path}real.csv')
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
-        synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_{args.stride}_trial_{trial}_onehot.csv')
+        synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_trial_{trial}_onehot.csv')

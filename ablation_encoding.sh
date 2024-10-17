@@ -2,8 +2,9 @@
 
 # Define the options for the synth_mask parameter
 options_synth_mask=("C" "M" "F")
-options_encoding=("std" "prop" "onehot" "ordinal")
-options_dataset=("AustraliaTourism")
+#options_encoding=("std" "prop" "onehot" "ordinal")
+options_encoding=("onehot")
+options_dataset=("AustraliaTourism" "MetroTraffic")
 # Loop through all synth_mask options and run the Python script with each one
 for dataset in "${options_dataset[@]}"
 do
