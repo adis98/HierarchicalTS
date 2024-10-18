@@ -13,9 +13,9 @@ do
     for synth_mask in "${options_synth_mask[@]}"
     do
       if [[ "$encoding" == "std" ]]; then
-        python3.12 synthesis_hyacinth_divide_and_conquer.py -d $dataset -synth_mask $synth_mask
+        python3.12 synthesis_hyacinth_pipeline.py -d $dataset -synth_mask $synth_mask
       elif [[ "$encoding" == "prop" ]]; then
-        python3.12 synthesis_hyacinth_divide_and_conquer.py -d $dataset -synth_mask $synth_mask -propCycEnc True
+        python3.12 synthesis_hyacinth_pipeline.py -d $dataset -synth_mask $synth_mask -propCycEnc True
       elif [[ "$encoding" == "onehot" ]]; then
         python3.12 synthesis_hyacinth_onehot.py -d $dataset -synth_mask $synth_mask
       elif [[ "$encoding" == "ordinal" ]]; then

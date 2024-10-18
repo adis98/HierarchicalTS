@@ -48,7 +48,8 @@ if __name__ == "__main__":
     parser.add_argument('-s4_bidirectional', type=bool, default=True)
     parser.add_argument('-s4_layernorm', type=bool, default=True)
     parser.add_argument('-propCycEnc', type=bool, default=False)
-    parser.add_argument('-synth_mask', type=str, required=True, help="the hierarchy masking type, coarse (C), fine (F), mid (M)")
+    parser.add_argument('-synth_mask', type=str, required=True,
+                        help="the hierarchy masking type, coarse (C), fine (F), mid (M)")
     parser.add_argument('-n_trials', type=int, default=5)
     args = parser.parse_args()
     dataset = args.dataset
@@ -57,7 +58,8 @@ if __name__ == "__main__":
     df = preprocessor.df_cleaned
 
     #  Add some more samples form the training set as additional context for synthesis
-    test_df = df.loc[preprocessor.train_indices[-args.window_size:] + preprocessor.test_indices]
+    additional_indices = (len(preprocessor.test_indices) + args.window_size) % args.window_size
+    test_df = df.loc[preprocessor.train_indices[-additional_indices:] + preprocessor.test_indices]
     test_df_with_hierarchy = preprocessor.cyclicDecode(test_df)
     decimal_accuracy_orig = preprocessor.df_orig.apply(decimal_places).to_dict()
     decimal_accuracy_processed = test_df_with_hierarchy.apply(decimal_places).to_dict()
@@ -67,25 +69,9 @@ if __name__ == "__main__":
 
     metadata = test_df_with_hierarchy[preprocessor.hierarchical_features_uncyclic]
     rows_to_synth = metadataMask(metadata, args.synth_mask, args.dataset)
-    # constraints = {'year': 2013}  # determines which rows need synthetic data
-    # metadata = metaSynthHyacinth(preprocessor.hierarchical_features_uncyclic, train_df_with_hierarchy)
-
-    # Iterate over the dictionary to create masks for each column
-    # for col, value in constraints.items():
-    #     column_mask = metadata[col] == value
-    #     rows_to_synth &= column_mask
-
-    # rows_to_synth_orig = rows_to_synth
-    # real_exclusive = rows_to_synth & (metadata['_merge'] == 'both')  # rows in the real data that need re-synthesis
-    # rows_to_synth |= metadata['_merge'] == 'left_only'
-    # real_df = metadata.loc[real_exclusive]
-    # real_df = real_df.drop(columns=['_merge'])
     real_df = test_df_with_hierarchy[rows_to_synth]
-    # df_synth = metadata.copy()
-    # df_synth = preprocessor.cyclicEncode(df_synth)
-    # df_synth = df_synth.drop(columns=['_merge'])
     df_synth = test_df.copy()
-    """Approach 1: Divide and conquer"""
+    """Approach 3: Divide and conquer"""
     test_samples = []
     mask_samples = []
     d_vals = df_synth.values
@@ -93,11 +79,8 @@ if __name__ == "__main__":
 
     d_vals_tensor = from_numpy(d_vals)
     m_vals_tensor = from_numpy(m_vals)
-    windows = d_vals_tensor.unfold(0, args.window_size, 1).transpose(1, 2)
-    masks = m_vals_tensor.unfold(0, args.window_size, 1)
-    condition = torch.any(masks, dim=1)
-    # windows = windows[condition]
-    # masks = masks[condition]
+    windows = d_vals_tensor.unfold(0, args.window_size, args.window_size).transpose(1, 2)
+    masks = m_vals_tensor.unfold(0, args.window_size, args.window_size)
     hierarchical_column_indices = df_synth.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     in_dim = len(df_synth.columns)
     out_dim = len(df_synth.columns) - len(hierarchical_column_indices)
@@ -124,13 +107,14 @@ if __name__ == "__main__":
             param.requires_grad = False
     model.eval()
 
+    num_ops = 0  # start measuring the number of compute steps for the whole generation time
     for trial in range(args.n_trials):
         with torch.no_grad():
             synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
             for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
                 test_batch = test_batch.to(device)
                 mask_batch = mask_batch.to(device)
-                x = create_pipelined_noise(test_batch, args).to(device)
+                x = torch.normal(0, 1, test_batch.shape).to(device)
                 x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
                 print(f'batch: {idx} of {len(test_dataloader)}')
                 for step in range(diffusion_config['T'] - 1, -1, -1):
@@ -141,8 +125,9 @@ if __name__ == "__main__":
                     alpha_t = diffusion_config['alphas'][step].to(device)
                     beta_t = diffusion_config['betas'][step].to(device)
 
-                    sampled_noise = create_pipelined_noise(test_batch, args).to(device)
-                    cached_denoising = torch.sqrt(alpha_bar_t) * test_batch + torch.sqrt(1 - alpha_bar_t) * sampled_noise
+                    sampled_noise = torch.normal(0, 1, test_batch.shape).to(device)
+                    cached_denoising = torch.sqrt(alpha_bar_t) * test_batch + torch.sqrt(
+                        1 - alpha_bar_t) * sampled_noise
                     mask_expanded = torch.zeros_like(test_batch, dtype=bool)
                     for channel in non_hier_cols:
                         mask_expanded[:, :, channel] = mask_batch
@@ -166,30 +151,16 @@ if __name__ == "__main__":
                     # x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
                     x[mask_expanded] = normal_denoising[mask_expanded]
                     x[~mask_expanded] = test_batch[~mask_expanded]
-                    rolled_x = x.roll(1, 0)
-                    x[1:, : args.window_size - 1, :] = rolled_x[1:, 1: args.window_size, :]
-                    # if step == 0:
-                    #     x[~mask_batch][:, non_hier_cols] = test_batch[~mask_batch][:, non_hier_cols]
-                    #     k = x[~mask_batch][:, non_hier_cols]
+                    if trial == 0:
+                        num_ops += 1
 
-                first_sample = x[0]
-                last_timesteps = x[1:, -1, :]
-                if idx == 0:
-                    generated = torch.cat((first_sample, last_timesteps), dim=0)
-                else:
-                    generated = x[:, -1, :]
+                generated = x.view(-1, x.shape[2])
                 synth_tensor = torch.cat((synth_tensor, generated), dim=0)
 
         df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
         real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
         real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
-        # decimal_accuracy = real_df_reconverted.apply(decimal_places).to_dict()
         synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
-
-        # rows_to_select_synth = pd.Series([True] * len(synth_df_reconverted))
-        # for col, value in constraints.items():
-        #     column_mask = synth_df_reconverted[col] == value
-        #     rows_to_select_synth &= column_mask
         rows_to_synth_reset = rows_to_synth.reset_index(drop=True)
         synth_df_reconverted_selected = synth_df_reconverted[rows_to_synth_reset]
         synth_df_reconverted_selected = synth_df_reconverted_selected.round(decimal_accuracy)
@@ -202,6 +173,12 @@ if __name__ == "__main__":
             real_df_reconverted.to_csv(f'{path}real.csv')
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
         if args.propCycEnc:
-            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_trial_{trial}_cycProp.csv')
+            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_divide_and_conquer_trial_{trial}_cycProp.csv')
+            if trial == 0:
+                with open(f'{path}denoiser_calls_divide_and_conquer_cycProp.txt', 'w') as file:
+                    file.write(str(num_ops))
         else:
-            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_trial_{trial}_cycStd.csv')
+            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_divide_and_conquer_trial_{trial}_cycStd.csv')
+            if trial == 0:
+                with open(f'{path}denoiser_calls_divide_and_conquer_cycStd.txt', 'w') as file:
+                    file.write(str(num_ops))

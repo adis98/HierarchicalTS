@@ -47,14 +47,16 @@ if __name__ == "__main__":
     training_df = df.loc[preprocessor.train_indices]
     test_df = df.loc[preprocessor.test_indices]
     hierarchical_column_indices = training_df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
-    training_samples = []
-    for i in range(0, len(training_df) - args.window_size + 1, args.stride):
-        window = training_df.iloc[i:i + args.window_size].values
-        training_samples.append(window)
-
+    # training_samples = []
+    d_vals_tensor = from_numpy(training_df.values)
+    training_samples = d_vals_tensor.unfold(0, args.window_size, 1).transpose(1, 2)
+    # masks = m_vals_tensor.unfold(0, args.window_size, 1)
+    # for i in range(0, len(training_df) - args.window_size + 1, args.stride):
+    #     window = training_df.iloc[i:i + args.window_size].values
+    #     training_samples.append(window)
     in_dim = len(training_df.columns)
     out_dim = len(training_df.columns) - len(hierarchical_column_indices)
-    training_dataset = MyDataset(from_numpy(np.array(training_samples)).float())
+    training_dataset = MyDataset(training_samples.float())
     model = fetchModel(in_dim, out_dim, args).to(device)
     diffusion_config = fetchDiffusionConfig(args)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
