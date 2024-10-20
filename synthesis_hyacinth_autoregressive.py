@@ -89,10 +89,10 @@ if __name__ == "__main__":
     model.eval()
 
     total_to_synth = rows_to_synth.sum()
-    synthetic_df = test_df.copy()
-    synthetic_mask = rows_to_synth.copy()
     num_ops = 0  # start measuring the number of compute steps for the whole generation time
     for trial in range(args.n_trials):
+        synthetic_df = test_df.copy()
+        synthetic_mask = rows_to_synth.copy()
         with torch.no_grad():
             total_generated = 0
             for i in range(0, len(test_df) - args.window_size + 1, args.stride):

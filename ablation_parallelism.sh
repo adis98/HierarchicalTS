@@ -9,12 +9,13 @@ for dataset in "${options_dataset[@]}"
 do
   for synth_mask in "${options_synth_mask[@]}"
   do
-    python3.12 synthesis_hyacinth_pipeline.py -d $dataset -synth_mask $synth_mask
+    #python3.12 synthesis_hyacinth_pipeline.py -d $dataset -synth_mask $synth_mask
 
-    python3.12 synthesis_hyacinth_divide_and_conquer.py -d $dataset -synth_mask $synth_mask
+    #python3.12 synthesis_hyacinth_divide_and_conquer.py -d $dataset -synth_mask $synth_mask
+    python3.12 synthesis_hyacinth_autoregressive.py -d $dataset -synth_mask $synth_mask -stride 8
 
-    python3.12 synthesis_hyacinth_autoregressive.py -d $dataset -synth_mask $synth_mask -stride 16 -timesteps 200
+    #python3.12 synthesis_hyacinth_autoregressive.py -d $dataset -synth_mask $synth_mask -stride 16
 
-    python3.12 synthesis_hyacinth_autoregressive.py -d $dataset -synth_mask $synth_mask -stride 32
+    #python3.12 synthesis_hyacinth_autoregressive.py -d $dataset -synth_mask $synth_mask -stride 32
   done
 done
