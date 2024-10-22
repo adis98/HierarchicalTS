@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 import pandas as pd
 import os
 from metasynth import metadataMask
+from timeit import default_timer as timer
 
 
 def decimal_places(series):
@@ -90,7 +91,9 @@ if __name__ == "__main__":
 
     total_to_synth = rows_to_synth.sum()
     num_ops = 0  # start measuring the number of compute steps for the whole generation time
+    exec_times = []
     for trial in range(args.n_trials):
+        start = timer()
         synthetic_df = test_df.copy()
         synthetic_mask = rows_to_synth.copy()
         with torch.no_grad():
@@ -99,7 +102,8 @@ if __name__ == "__main__":
                 window = synthetic_df.iloc[i:i + args.window_size].values
                 mask_window = synthetic_mask.iloc[i:i + args.window_size].values
                 if any(mask_window):
-                    test_batch = from_numpy(np.reshape(window, (1, window.shape[0], window.shape[1]))).float().to(device)
+                    test_batch = from_numpy(np.reshape(window, (1, window.shape[0], window.shape[1]))).float().to(
+                        device)
                     mask_batch = from_numpy(mask_window).to(device)
                     x = torch.normal(0, 1, test_batch.shape).to(device)
                     x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
@@ -121,7 +125,8 @@ if __name__ == "__main__":
                         epsilon_pred = epsilon_pred.permute((0, 2, 1))
                         if step > 0:
                             vari = beta_t * ((1 - alpha_bar_t_1) / (1 - alpha_bar_t)) * torch.normal(0, 1,
-                                                                                                     size=epsilon_pred.shape).to(device)
+                                                                                                     size=epsilon_pred.shape).to(
+                                device)
                         else:
                             vari = 0.0
 
@@ -141,6 +146,8 @@ if __name__ == "__main__":
                     synthetic_df.iloc[i:i + args.window_size] = x.cpu().numpy()
                     synthetic_mask.iloc[i:i + args.window_size] = np.zeros_like(mask_window, dtype=bool)
 
+        end = timer()
+        exec_times.append(end - start)
         df_synthesized = synthetic_df[df.columns].reset_index(drop=True)
         real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
         real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
@@ -157,12 +164,21 @@ if __name__ == "__main__":
             real_df_reconverted.to_csv(f'{path}real.csv')
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
         if args.propCycEnc:
-            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_autoregressive_stride_{args.stride}_trial_{trial}_cycProp.csv')
+            synth_df_reconverted_selected.to_csv(
+                f'{path}synth_hyacinth_autoregressive_stride_{args.stride}_trial_{trial}_cycProp.csv')
             if trial == 0:
                 with open(f'{path}denoiser_calls_autoregressive_stride_{args.stride}_cycProp.txt', 'w') as file:
                     file.write(str(num_ops))
         else:
-            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_autoregressive_stride_{args.stride}_trial_{trial}_cycStd.csv')
+            synth_df_reconverted_selected.to_csv(
+                f'{path}synth_hyacinth_autoregressive_stride_{args.stride}_trial_{trial}_cycStd.csv')
             if trial == 0:
                 with open(f'{path}denoiser_calls_autoregressive_stride_{args.stride}_cycStd.txt', 'w') as file:
                     file.write(str(num_ops))
+
+    with open(
+            f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_autoregressive_stride_{args.stride}_cycStd.txt',
+            'a') as file:
+        arr_time = np.array(exec_times)
+        file.write('\n' + str(np.mean(arr_time)) + '\n')
+        file.write(str(np.std(arr_time)))

@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 import pandas as pd
 import os
 from metasynth import metadataMask
+from timeit import default_timer as timer
 
 
 def decimal_places(series):
@@ -107,7 +108,9 @@ if __name__ == "__main__":
     model.eval()
 
     num_ops = 0  # start measuring the number of compute steps for the whole generation time
+    exec_times = []
     for trial in range(args.n_trials):
+        start = timer()
         with torch.no_grad():
             synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
             for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
@@ -161,7 +164,9 @@ if __name__ == "__main__":
                 else:
                     generated = x[:, -1, :]
                 synth_tensor = torch.cat((synth_tensor, generated), dim=0)
-
+        end = timer()
+        diff = end - start
+        exec_times.append(diff)
         df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
         real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
         real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
@@ -193,3 +198,9 @@ if __name__ == "__main__":
             if trial == 0:
                 with open(f'{path}denoiser_calls_pipeline_cycStd.txt', 'w') as file:
                     file.write(str(num_ops))
+
+    with open(f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_pipeline_cycStd.txt', 'a') as file:
+        arr_time = np.array(exec_times)
+        file.write('\n' + str(np.mean(arr_time)) + '\n')
+        file.write(str(np.std(arr_time)))
+

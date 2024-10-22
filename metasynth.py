@@ -42,3 +42,17 @@ def metadataMask(metadata, synthmask, dataset):
             return (metadata['year'] == 2016) & (metadata['State'] == 'Queensland')
         elif synthmask == 'F':
             return (metadata['year'] == 2016) & (metadata['Purpose'] == 'Holiday')
+    elif dataset == 'BeijingAirQuality':
+        if synthmask == "C":
+            return metadata['year'] == 2017
+        elif synthmask == "M":
+            return (metadata['year'] == 2017) & (metadata['month'] == 2)
+        elif synthmask == "F":
+            return (metadata['year'] == 2017) & (metadata['hour'] == 11)
+    elif dataset == 'RossmanSales':
+        if synthmask == "C":
+            return metadata['Year'] == 2015
+        elif synthmask == "M":
+            return (metadata['Year'] == 2015) & (metadata['Month'] == 3)
+        elif synthmask == "F":
+            return (metadata['Year'] == 2015) & (metadata['Store'] == 9)
