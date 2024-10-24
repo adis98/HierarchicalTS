@@ -14,6 +14,8 @@ develop-eggs/
 dist/
 downloads/
 saved_models/
+saved_models/MetroTraffic/model_prop.pth
+saved_models/MetroTraffic/model.pth
 eggs/
 .eggs/
 lib/
@@ -33,6 +35,7 @@ WebTrafficLAcity/
 QuarterlyTourismAustralia/
 StoreItemandDemandForecastingChallenge/
 RossmanSales/
+PanamaEnergy/
 synths/
 extensions/
 

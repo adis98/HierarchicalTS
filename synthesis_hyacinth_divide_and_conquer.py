@@ -59,7 +59,7 @@ if __name__ == "__main__":
     df = preprocessor.df_cleaned
 
     #  Add some more samples form the training set as additional context for synthesis
-    additional_indices = (len(preprocessor.test_indices) + args.window_size) % args.window_size
+    additional_indices = args.window_size - (len(preprocessor.test_indices) % args.window_size)
     test_df = df.loc[preprocessor.train_indices[-additional_indices:] + preprocessor.test_indices]
     test_df_with_hierarchy = preprocessor.cyclicDecode(test_df)
     decimal_accuracy_orig = preprocessor.df_orig.apply(decimal_places).to_dict()

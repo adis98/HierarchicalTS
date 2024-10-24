@@ -10,7 +10,8 @@ datasets = {"WebTraffic": "WebTrafficLAcity/lacity.org-website-traffic.csv",
             "RossmanSales": "RossmanSales/train.csv",
             "AustraliaTourism": "QuarterlyTourismAustralia/tourism.csv",
             "MetroTraffic": "MetroInterstateTrafficVolume/Metro_Interstate_Traffic_Volume.csv/Metro_Interstate_Traffic_Volume.csv",
-            "BeijingAirQuality": "BeijingAirQuality/beijing+multi+site+air+quality+data"}
+            "BeijingAirQuality": "BeijingAirQuality/beijing+multi+site+air+quality+data",
+            "PanamaEnergy": "PanamaEnergy/continuous dataset.csv"}
 
 
 class CyclicEncoder:
@@ -121,6 +122,9 @@ class Preprocessor:
         elif name == "RossmanSales":
             self.test_indices = self.df_orig.index[self.df_orig['Year'].isin([2015])].to_list()
             self.train_indices = self.df_orig.index[~self.df_orig['Year'].isin([2015])].to_list()
+        elif name == "PanamaEnergy":
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2020])].to_list()
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2020])].to_list()
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
@@ -159,6 +163,38 @@ class Preprocessor:
                 df = df.sort_values(by=['Year', 'Month', 'Day', 'Store'], ignore_index=True)
                 df = df[['Year', 'Month', 'Day', 'Store', 'Sales', 'Customers']]
                 self.hierarchical_features_uncyclic = ['Year', 'Month', 'Day', 'Store']
+            elif name == "PanamaEnergy":
+                df = df.drop(columns=['nat_demand', 'Holiday_ID', 'holiday', 'school'])
+
+                # Create a multi-index by city and weather parameter
+                # We melt the dataframe to unpivot the city-specific columns and create a 'city' column
+                df = pd.melt(df,
+                                    id_vars=['datetime'],
+                                    value_vars=['T2M_toc', 'QV2M_toc', 'TQL_toc', 'W2M_toc',
+                                                'T2M_san', 'QV2M_san', 'TQL_san', 'W2M_san',
+                                                'T2M_dav', 'QV2M_dav', 'TQL_dav', 'W2M_dav'],
+                                    var_name='variable',
+                                    value_name='value')
+
+                # Split 'variable' column into 'city' and 'parameter'
+                df['city'] = df['variable'].str.split('_').str[-1]
+                df['parameter'] = df['variable'].str.split('_').str[0]
+
+                # Pivot the dataframe to get the parameters as columns and city as a column
+                df = df.pivot_table(index=['datetime', 'city'],
+                                                   columns='parameter',
+                                                   values='value').reset_index()
+
+                # Rearranging columns (optional)
+                df['date'] = pd.to_datetime(df['datetime'])
+                df['year'] = df['date'].dt.year
+                df['month'] = df['date'].dt.month
+                df['day'] = df['date'].dt.day
+                df['hour'] = df['date'].dt.hour
+                df.drop(columns=['date', 'datetime'], inplace=True)
+                df = df[['year', 'month', 'day', 'hour', 'city', 'T2M', 'TQL', 'W2M', 'QV2M']]
+                df = df.sort_values(by=['year', 'month', 'day', 'hour', 'city'], ignore_index=True)
+                self.hierarchical_features_uncyclic = ['year', 'month', 'day', 'hour', 'city']
         else:
             dfs = []
             csvs = os.listdir(datasets[name])
@@ -199,6 +235,9 @@ class Preprocessor:
         elif name == "RossmanSales":
             if self.cyclic_encoded_columns is None:
                 self.cyclic_encoded_columns = ['Year', 'Month', 'Day', 'Store']
+        elif name == "PanamaEnergy":
+            if self.cyclic_encoded_columns is None:
+                self.cyclic_encoded_columns = ['year', 'month', 'day', 'hour', 'city']
 
         df_cyclic = self.cyclicEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 

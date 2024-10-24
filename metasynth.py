@@ -56,3 +56,10 @@ def metadataMask(metadata, synthmask, dataset):
             return (metadata['Year'] == 2015) & (metadata['Month'] == 3)
         elif synthmask == "F":
             return (metadata['Year'] == 2015) & (metadata['Store'] == 9)
+    elif dataset == "PanamaEnergy":
+        if synthmask == "C":
+            return metadata['year'] == 2020
+        elif synthmask == "M":
+            return (metadata['year'] == 2020) & (metadata['day'] == 5)
+        elif synthmask == "F":
+            return (metadata['year'] == 2020) & (metadata['city'] == 'san')
