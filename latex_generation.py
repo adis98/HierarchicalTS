@@ -24,8 +24,8 @@ if __name__ == "__main__":
 
     """PARALLELISM ABLATION"""
     df = pd.read_csv('experiments/ablations/parallelism/ablation_parallelism.csv')
-    mapper = {"AR-16": "AR-16", "AR-32": "AR-32", "DNQ": "DNQ", "Pipeline": "Pipe", "AR-8": "AR-8"}
-    for parallel in ["AR-8", "AR-16", "AR-32", "DNQ", "Pipeline"]:
+    mapper = {"AR-16": "AR-16", "AR-32": "AR-32", "DNQ": "DNQ", "Pipe": "Pipe", "Pipe-1": "Pipe-1", "Pipe-8": "Pipe-8", "Pipe-16": "Pipe-16", "Pipe-32": "Pipe-32", "AR-8": "AR-8"}
+    for parallel in ["AR-8", "AR-16", "AR-32", "DNQ", "Pipe", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
         for dataset in ["PanamaEnergy"]:
             for level in ["C", "M", "F"]:
                 row = df.loc[(df["Parallelism"] == parallel) & (df['Dataset'] == dataset) & (df['Level'] == level)]

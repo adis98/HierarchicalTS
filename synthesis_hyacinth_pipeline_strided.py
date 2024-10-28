@@ -84,8 +84,8 @@ if __name__ == "__main__":
 
     d_vals_tensor = from_numpy(d_vals)
     m_vals_tensor = from_numpy(m_vals)
-    windows = d_vals_tensor.unfold(0, args.window_size, 1).transpose(1, 2)
-    masks = m_vals_tensor.unfold(0, args.window_size, 1)
+    windows = d_vals_tensor.unfold(0, args.window_size, args.stride).transpose(1, 2)
+    masks = m_vals_tensor.unfold(0, args.window_size, args.stride)
     hierarchical_column_indices = df_synth.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
     in_dim = len(df_synth.columns)
     out_dim = len(df_synth.columns) - len(hierarchical_column_indices)
@@ -159,15 +159,17 @@ if __name__ == "__main__":
                     x[mask_expanded] = normal_denoising[mask_expanded]
                     x[~mask_expanded] = test_batch[~mask_expanded]
                     rolled_x = x.roll(1, 0)
-                    x[1:, : args.window_size - args.stride, :] = rolled_x[1:, args.stride: args.window_size, :]
+                    x[1:, : (args.window_size - args.stride), :] = rolled_x[1:, args.stride: args.window_size, :]
                     if trial == 0:
                         num_ops += 1
                 first_sample = x[0]
-                last_timesteps = x[1:, args.window_size - args.stride:, :]
+                last_timesteps = x[1:, (args.window_size - args.stride):, :]
                 if idx == 0:
+                    last_timesteps = last_timesteps.reshape(-1, last_timesteps.shape[2])
                     generated = torch.cat((first_sample, last_timesteps), dim=0)
                 else:
-                    generated = x[:, args.window_size - args.stride:, :]
+                    generated = x[:, (args.window_size - args.stride):, :]
+                    generated = generated.reshape(-1, generated.shape[2])
                 synth_tensor = torch.cat((synth_tensor, generated), dim=0)
         end = timer()
         diff = end - start
@@ -194,17 +196,17 @@ if __name__ == "__main__":
             real_df_reconverted.to_csv(f'{path}real.csv')
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
         if args.propCycEnc:
-            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_cycProp.csv')
+            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_pipeline_stride_{args.stride}_trial_{trial}_cycProp.csv')
             if trial == 0:
-                with open(f'{path}denoiser_calls_pipeline_stride_{stride}_cycProp.txt', 'w') as file:
+                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycProp.txt', 'w') as file:
                     file.write(str(num_ops))
         else:
-            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_cycStd.csv')
+            synth_df_reconverted_selected.to_csv(f'{path}synth_hyacinth_pipeline_stride_{args.stride}_trial_{trial}_cycStd.csv')
             if trial == 0:
-                with open(f'{path}denoiser_calls_pipeline_stride_{stride}_cycStd.txt', 'w') as file:
+                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycStd.txt', 'w') as file:
                     file.write(str(num_ops))
 
-    with open(f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_pipeline_stride_{stride}_cycStd.txt', 'a') as file:
+    with open(f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_pipeline_stride_{args.stride}_cycStd.txt', 'a') as file:
         arr_time = np.array(exec_times)
         file.write('\n' + str(np.mean(arr_time)) + '\n')
         file.write(str(np.std(arr_time)))

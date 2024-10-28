@@ -278,7 +278,10 @@ class Preprocessor:
             df_mod[self.cols_to_scale] = self.scaler.inverse_transform(df_mod[self.cols_to_scale])
 
         for col in df_mod.columns:
-            df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
+            try:
+                df_mod[col] = df_mod[col].astype(self.column_dtypes[col])
+            except Exception as e:
+                print()
         return df_mod
 
     def scale(self, df):
