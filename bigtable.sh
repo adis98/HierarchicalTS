@@ -9,11 +9,12 @@ for dataset in "${options_dataset[@]}"
 do
   for synth_mask in "${options_synth_mask[@]}"
   do
-    python3.12 synthesis_tsdiff.py -d $dataset -synth_mask $synth_mask -strength 0.0
-    python3.12 synthesis_tsdiff.py -d $dataset -synth_mask $synth_mask -strength 0.5
-    python3.12 synthesis_tsdiff.py -d $dataset -synth_mask $synth_mask -strength 1.0
-    python3.12 synthesis_tsdiff.py -d $dataset -synth_mask $synth_mask -strength 2.0
+    #python3.12 synthesis_tsdiff.py -d $dataset -synth_mask $synth_mask -strength 0.0
+    #python3.12 synthesis_tsdiff.py -d $dataset -synth_mask $synth_mask -strength 0.5
+    #python3.12 synthesis_tsdiff.py -d $dataset -synth_mask $synth_mask -strength 1.0
+    #python3.12 synthesis_tsdiff.py -d $dataset -synth_mask $synth_mask -strength 2.0
     #python3.12 synthesis_hyacinth_pipeline.py -d $dataset -synth_mask $synth_mask
+    python3.12 synthesis_timeweaver.py -d $dataset -synth_mask $synth_mask
 
     #python3.12 synthesis_hyacinth_divide_and_conquer.py -d $dataset -synth_mask $synth_mask
     #python3.12 synthesis_hyacinth_autoregressive.py -d $dataset -synth_mask $synth_mask -stride 8
