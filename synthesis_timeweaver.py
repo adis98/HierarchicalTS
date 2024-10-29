@@ -72,18 +72,20 @@ if __name__ == "__main__":
     real_df = test_df_with_hierarchy[rows_to_synth]
     df_synth = test_df[rows_to_synth]
     """Approach 3: Divide and conquer"""
-    extra_samples = args.window_size - (len(df_synth) % args.window_size) if (len(df_synth) % args.window_size) > 0 else 0
-    extra_rows = df_synth.iloc[-extra_samples:, :].values
-    extra_rows = np.zeros_like(extra_rows)
-    new_rows = pd.DataFrame(extra_rows, columns=df_synth.columns)
-
-    # Concatenate the original DataFrame with the new rows
-    df_synth = pd.concat([df_synth, new_rows], ignore_index=True)
+    extra_samples = None
+    if (len(df_synth) % args.window_size) > 0:
+        extra_samples = args.window_size - (len(df_synth) % args.window_size) if (len(df_synth) % args.window_size) > 0 else 0
+        extra_rows = df_synth.iloc[-extra_samples:, :].values
+        extra_rows = np.zeros_like(extra_rows)
+        new_rows = pd.DataFrame(extra_rows, columns=df_synth.columns)
+        # Concatenate the original DataFrame with the new rows
+        df_synth = pd.concat([df_synth, new_rows], ignore_index=True)
     test_samples = []
     mask_samples = []
     d_vals = df_synth.values
     m_vals = np.array([True] * len(df_synth))
-    m_vals[-extra_samples:] = False
+    if extra_samples is not None:
+        m_vals[-extra_samples:] = False
     d_vals_tensor = from_numpy(d_vals)
     m_vals_tensor = from_numpy(m_vals)
     windows = d_vals_tensor.unfold(0, args.window_size, args.window_size).transpose(1, 2)
@@ -172,7 +174,7 @@ if __name__ == "__main__":
         real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
         synth_df_reconverted = preprocessor.decode(df_synthesized, rescale=True)
         # rows_to_synth_reset = rows_to_synth.reset_index(drop=True)
-        synth_df_reconverted_selected = synth_df_reconverted.iloc[:-extra_samples, :]
+        synth_df_reconverted_selected = synth_df_reconverted.iloc[:-extra_samples, :] if extra_samples is not None else synth_df_reconverted.iloc[:, :]
         synth_df_reconverted_selected = synth_df_reconverted_selected.round(decimal_accuracy)
         synth_df_reconverted_selected = synth_df_reconverted_selected.reset_index(drop=True)
         path = f'generated/{args.dataset}/{args.synth_mask}/'

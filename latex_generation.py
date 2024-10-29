@@ -50,7 +50,7 @@ if __name__ == "__main__":
     """bigtable"""
     df = pd.read_csv('experiments/bigtable/bigtable.csv')
     # mapper = {"AR-16": "AR-16", "AR-32": "AR-32", "DNQ": "DNQ", "Pipe": "Pipe", "Pipe-1": "Pipe-1", "Pipe-8": "Pipe-8", "Pipe-16": "Pipe-16", "Pipe-32": "Pipe-32", "AR-8": "AR-8"}
-    for method in ["TSDiff-0", "TSDiff-0.5", "TSDiff-1.0", "TSDiff-2.0", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
+    for method in ["TimeWeaver", "TSDiff-0", "TSDiff-0.5", "TSDiff-1.0", "TSDiff-2.0", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
         for dataset in ["AustraliaTourism", "MetroTraffic", "BeijingAirQuality", "RossmanSales", "PanamaEnergy"]:
             for level in ["C", "M", "F"]:
                 row = df.loc[(df["Method"] == method) & (df['Dataset'] == dataset) & (df['Level'] == level)]
@@ -59,11 +59,11 @@ if __name__ == "__main__":
                 std_decimal = f"{std:.3f}".split(".")[1]
                 if level == "C" and dataset == "AustraliaTourism":
                     print(
-                        f" {method} & ${val:.3f}_{{\\scriptsize.{{{std_decimal}}}}}$",
+                        f" {method} & ${val:.3f}_{{.{{{std_decimal}}}}}$",
                         end="")
                 else:
                     print(
-                        f" & ${val:.3f}_{{\\scriptsize.{{{std_decimal}}}}}$",
+                        f" & ${val:.3f}_{{.{{{std_decimal}}}}}$",
                         end=""
                     )
         print("\\\\")

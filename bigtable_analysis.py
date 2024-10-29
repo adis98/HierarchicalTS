@@ -11,7 +11,7 @@ if __name__ == "__main__":
     for dataset in datasets:
         preprocessor = Preprocessor(dataset, False)
         for level in levels:
-            for method in ["TSDiff-0", "TSDiff-0.5", "TSDiff-1.0", "TSDiff-2.0", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
+            for method in ["TimeWeaver", "TSDiff-0", "TSDiff-0.5", "TSDiff-1.0", "TSDiff-2.0", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
                 df_real = pd.read_csv(f"generated/{dataset}/{level}/real.csv").drop(columns=['Unnamed: 0'])
                 df_real_cleaned = preprocessor.cleanDataset(dataset, df_real)
                 non_hier_cols = [col for col in df_real_cleaned.columns if
@@ -29,8 +29,13 @@ if __name__ == "__main__":
                         stride = int(method.split('-')[1])
                         df_synth = pd.read_csv(
                             f'generated/{dataset}/{level}/synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_cycStd.csv')
+                    elif method == "TimeWeaver":
+                        df_synth = pd.read_csv(
+                            f'generated/{dataset}/{level}/synth_timeweaver_trial_{trial}_cycStd.csv')
 
                     df_synth = df_synth.drop(columns=['Unnamed: 0'])
+                    if method == "TimeWeaver" and level == "M" and dataset == "AustraliaTourism":
+                        print()
                     df_synth_cleaned = preprocessor.cleanDataset(dataset, df_synth)
                     df_synth_cleaned_selected = df_synth_cleaned[non_hier_cols]
                     MSE = ((df_synth_cleaned_selected - df_real_cleaned_selected) ** 2).mean().mean()
