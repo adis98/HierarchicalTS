@@ -13,8 +13,8 @@ from torch.utils.data import DataLoader
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-dataset', '-d', type=str,
-                        help='MetroTraffic, BeijingAirQuality, AustraliaTourism, WebTraffic, StoreItems', required=True)
-    parser.add_argument('-backbone', type=str, help='Transformer, Bilinear, Linear, S4, TimeGAN', default='TimeGAN')
+                        help='MetroTraffic, BeijingAirQuality, AustraliaTourism, RossmanSales, PanamaEnergy', required=True)
+    parser.add_argument('-backbone', type=str, help='S4, TimeGAN', default='TimeGAN')
     parser.add_argument('-batch_size', type=int, help='batch size', default=1024)
     parser.add_argument('-embed_dim', type=int, default=64, help='latent dimension')
     parser.add_argument('-lr', type=float, default=1e-3, help='learning rate')
@@ -29,24 +29,34 @@ if __name__ == "__main__":
     device = device('cuda' if torch.cuda.is_available() else 'cpu')
     preprocessor = Preprocessor(dataset, args.propCycEnc)
     df = preprocessor.df_cleaned
-    hierarchical_column_indices = df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
+    training_df = df.loc[preprocessor.train_indices]
+    hierarchical_column_indices = training_df.columns.get_indexer(preprocessor.hierarchical_features_cyclic)
+    d_vals_tensor = from_numpy(training_df.values)
+    training_samples = d_vals_tensor.unfold(0, args.window_size, 1).transpose(1, 2)
     all_indices = np.arange(len(df.columns))
 
     # Find the indices not in the index_list
     remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
-    training_samples = []
-    for i in range(0, len(df) - args.window_size + 1, args.stride):
-        window = df.iloc[i:i + args.window_size].values
-        training_samples.append(window)
-
     in_dim = len(df.columns) - len(hierarchical_column_indices)
     out_dim = len(df.columns) - len(hierarchical_column_indices)
     total_dim = len(df.columns)
     args.in_dim = in_dim
-    args.embed_dim = in_dim - 1
+    args.embed_dim = in_dim - 1 if in_dim > 1 else in_dim
     args.cond_dim = len(hierarchical_column_indices)
     training_dataset = MyDataset(from_numpy(np.array(training_samples)).float())
     model = fetchModel(in_dim, out_dim, args).to(device)
+    if args.propCycEnc:
+        saved_params = torch.load(f'saved_models/{args.dataset}/model_timegan_prop.pth', map_location=device)
+    else:
+        saved_params = torch.load(f'saved_models/{args.dataset}/model_timegan.pth', map_location=device)
+    with torch.no_grad():
+        for name, param in model.named_parameters():
+            try:
+                param.copy_(saved_params[name])
+            except Exception:
+                print()
+            param.requires_grad = False
+    model.eval()
     # optimizer = optim.Adam(model.parameters(), lr=args.lr)
     # criterion = nn.MSELoss()
     dataloader = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True)
