@@ -3,23 +3,12 @@ import pandas as pd
 if __name__ == "__main__":
     """ENCODING ABLATION"""
     df = pd.read_csv('experiments/ablations/encoding/ablation_encoding.csv')
-    for encoding in ['OHE', 'ORD', 'STD']:
-        for metric in ['mse']:
-            for dataset in ['AustraliaTourism', 'MetroTraffic']:
-                for masking in ['C', 'M', 'F']:
-                    row = df.loc[(df['Dataset'] == dataset) & (df['Mask'] == masking) & (df['Encoding'] == encoding)]
-                    if metric == 'mse':
-                        print(rf'& ${row['Avg. MSE'].values[0]: .3f} \pm \text{{\scriptsize {row['Std. MSE'].values[0]: .3f}}}$', end=' ')
-                    elif metric == 'acc':
-                        if dataset == 'MetroTraffic':
-                            print(rf'& ${row['Avg. hit acc.'].values[0]: .3f} \pm \text{{\scriptsize {row['Std. hit acc.'].values[0]: .3f}}}$',
-                                end=' ')
-
-                        else:
-                            print(
-                                rf'& ${'-'}$',
-                                end=' ')
-            print('\\\\\n')
+    for dataset in ['MetroTraffic', 'PanamaEnergy']:
+        for encoding in ['OHE', 'STD']:
+            for masking in ['C', 'M', 'F']:
+                row = df.loc[(df['Dataset'] == dataset) & (df['Mask'] == masking) & (df['Encoding'] == encoding)]
+                print(rf'& ${row['Avg. MSE'].values[0]: .3f} \pm \text{{\scriptsize {row['Std. MSE'].values[0]: .3f}}}$', end=' ')
+            print('\\\\')
     # latex_file = r"""
 
     """PARALLELISM ABLATION"""
