@@ -15,7 +15,7 @@ if __name__ == "__main__":
     torch.manual_seed(42)
     parser = argparse.ArgumentParser()
     parser.add_argument('-dataset', '-d', type=str,
-                        help='MetroTraffic, BeijingAirQuality, AustraliaTourism, WebTraffic, StoreItems', required=True)
+                        help='MetroTraffic, BeijingAirQuality, AustraliaTourism, RossmanSales, PanamaEnergy', required=True)
     parser.add_argument('-backbone', type=str, help='Transformer, Bilinear, Linear, S4', default='S4')
     parser.add_argument('-beta_0', type=float, default=0.0001, help='initial variance schedule')
     parser.add_argument('-beta_T', type=float, default=0.02, help='last variance schedule')
@@ -61,67 +61,68 @@ if __name__ == "__main__":
 
     # Find the indices not in the index_list
     remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
-    d_model = 2 * (len(preprocessor.df_orig.columns) - len(preprocessor.hierarchical_features))
-    model_autoenc = TransformerAutoEncoderOneHot(input_dim=len(remaining_indices), d_model=d_model).to(device)
-    # Convert to an ndarray
-    optimizer_autoenc = optim.Adam(model_autoenc.parameters(), lr=args.lr)
-    mapper = {}
-    mseindices = np.arange(len(training_df.columns))
-    for col, names in preprocessor.one_hot_mapper.items():
-        mapper[col] = [training_df.columns.get_loc(name) for name in names]
-        mseindices = np.setdiff1d(mseindices, mapper[col])
-    mapper['msecols'] = mseindices
-    """TRAINING AUTOENCODER"""
-    for epoch in range(args.epochs):
-        total_loss = 0.0
-        for batch in dataloader:
-            batch = batch.to(device)
-            outs = model_autoenc(batch[:, :, remaining_indices])
-            loss = 0.0
-            start_index = 0
-            optimizer_autoenc.zero_grad()
-            for col, indices in mapper.items():
-                if col not in preprocessor.hierarchical_features:
-                    last_index = start_index + len(indices)
-                    outs_sel = outs[:, :, start_index:last_index]
-                    if col != 'msecols':
-                        targets = torch.argmax(batch[:, :, indices], dim=-1)
-                        outs_sel = outs_sel.view(-1, outs_sel.size(-1))
-                        targets = targets.view(-1, )
-                        loss += criterion_cep(outs_sel, targets)
-                    else:
-                        loss += len(indices) * criterion(outs_sel, batch[:, :, indices])
-                    start_index = last_index
+    # d_model = 2 * (len(preprocessor.df_orig.columns) - len(preprocessor.hierarchical_features))
+    # model_autoenc = TransformerAutoEncoderOneHot(input_dim=len(remaining_indices), d_model=d_model).to(device)
+    # # Convert to an ndarray
+    # optimizer_autoenc = optim.Adam(model_autoenc.parameters(), lr=args.lr)
+    # mapper = {}
+    # mseindices = np.arange(len(training_df.columns))
+    # for col, names in preprocessor.one_hot_mapper.items():
+    #     mapper[col] = [training_df.columns.get_loc(name) for name in names]
+    #     mseindices = np.setdiff1d(mseindices, mapper[col])
+    # mapper['msecols'] = mseindices
+    # """TRAINING AUTOENCODER"""
+    # for epoch in range(args.epochs):
+    #     total_loss = 0.0
+    #     for batch in dataloader:
+    #         batch = batch.to(device)
+    #         outs = model_autoenc(batch[:, :, remaining_indices])
+    #         loss = 0.0
+    #         start_index = 0
+    #         optimizer_autoenc.zero_grad()
+    #         for col, indices in mapper.items():
+    #             if col not in preprocessor.hierarchical_features:
+    #                 last_index = start_index + len(indices)
+    #                 outs_sel = outs[:, :, start_index:last_index]
+    #                 if col != 'msecols':
+    #                     targets = torch.argmax(batch[:, :, indices], dim=-1)
+    #                     outs_sel = outs_sel.view(-1, outs_sel.size(-1))
+    #                     targets = targets.view(-1, )
+    #                     loss += criterion_cep(outs_sel, targets)
+    #                 else:
+    #                     loss += len(indices) * criterion(outs_sel, batch[:, :, indices])
+    #                 start_index = last_index
+    #
+    #         loss.backward()
+    #         total_loss += loss
+    #         optimizer_autoenc.step()
+    #     print(f'EPOCH {epoch}, LOSS: {total_loss}')
+    #
+    # latents = None
+    # with torch.no_grad():
+    #     for batch in dataloader:
+    #         batch = batch.to(device)
+    #         latent = model_autoenc.encode(batch[:, :, remaining_indices])
+    #         latent = torch.cat((batch[:, :, hierarchical_column_indices], latent), 2)
+    #         if latents is None:
+    #             latents = latent
+    #         else:
+    #             latents = torch.cat((latents, latent), 0)
+    #
+    # latent_hierarchical_indices = np.arange(0, len(hierarchical_column_indices))
+    # latent_non_hierarchical_indices = np.arange(len(hierarchical_column_indices), latents.shape[2])
+    # latent_dataset = MyDataset(latents)
+    # latent_dataloader = DataLoader(latent_dataset, batch_size=args.batch_size, shuffle=True)
 
-            loss.backward()
-            total_loss += loss
-            optimizer_autoenc.step()
-        print(f'EPOCH {epoch}, LOSS: {total_loss}')
-
-    latents = None
-    with torch.no_grad():
-        for batch in dataloader:
-            batch = batch.to(device)
-            latent = model_autoenc.encode(batch[:, :, remaining_indices])
-            latent = torch.cat((batch[:, :, hierarchical_column_indices], latent), 2)
-            if latents is None:
-                latents = latent
-            else:
-                latents = torch.cat((latents, latent), 0)
-
-    latent_hierarchical_indices = np.arange(0, len(hierarchical_column_indices))
-    latent_non_hierarchical_indices = np.arange(len(hierarchical_column_indices), latents.shape[2])
-    latent_dataset = MyDataset(latents)
-    latent_dataloader = DataLoader(latent_dataset, batch_size=args.batch_size, shuffle=True)
-
-    in_dim = len(latent_hierarchical_indices) + len(latent_non_hierarchical_indices)
-    out_dim = len(latent_non_hierarchical_indices)
+    in_dim = len(training_df.columns)
+    out_dim = len(training_df.columns) - len(hierarchical_column_indices)
     model = fetchModel(in_dim, out_dim, args).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    non_hier_cols = np.array(remaining_indices)
     """TRAINING"""
     for epoch in range(args.epochs):
         total_loss = 0.0
-        for batch in latent_dataloader:
+        for batch in dataloader:
             batch = batch.to(device)
             timesteps = randint(diffusion_config['T'], size=(batch.shape[0],)).to(device)
             sigmas = normal(0, 1, size=batch.shape).to(device)
@@ -130,7 +131,7 @@ if __name__ == "__main__":
             coeff_1 = sqrt(alpha_bars[timesteps]).reshape((len(timesteps), 1, 1))
             coeff_2 = sqrt(1 - alpha_bars[timesteps]).reshape((len(timesteps), 1, 1))
             conditional_mask = np.ones(batch.shape)
-            conditional_mask[:, :, latent_non_hierarchical_indices] = 0
+            conditional_mask[:, :, non_hier_cols] = 0
             conditional_mask = from_numpy(conditional_mask).float().to(device)
             batch_noised = (1 - conditional_mask) * (coeff_1 * batch + coeff_2 * sigmas) + conditional_mask * batch
             batch_noised = batch_noised.to(device)
@@ -138,7 +139,7 @@ if __name__ == "__main__":
             # timesteps = timesteps.to(device)
             sigmas_predicted = model(batch_noised, timesteps)
             optimizer.zero_grad()
-            sigmas_permuted = sigmas[:, :, latent_non_hierarchical_indices].permute((0, 2, 1))
+            sigmas_permuted = sigmas[:, :, non_hier_cols].permute((0, 2, 1))
             sigmas_permuted = sigmas_permuted.to(device)
             loss = criterion(sigmas_predicted, sigmas_permuted)
             loss.backward()
@@ -151,6 +152,4 @@ if __name__ == "__main__":
 
     if not os.path.exists(path):
         os.makedirs(path)
-
-    torch.save(model_autoenc.state_dict(), os.path.join(path, "model_autoenc_onehot.pth"))
     torch.save(model.state_dict(), filepath)

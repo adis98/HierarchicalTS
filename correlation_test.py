@@ -2,61 +2,68 @@ import argparse
 import numpy as np
 import pandas as pd
 from data_utils import Preprocessor
-import seaborn as sns
 import matplotlib.pyplot as plt
+import warnings
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-dataset', '-d', type=str,
-                        help='MetroTraffic, BeijingAirQuality, AustraliaTourism, WebTraffic, StoreItems', required=True)
-    parser.add_argument('-propCycEnc', type=bool, default=False)
-    args = parser.parse_args()
-    dataset = args.dataset
-    constraints = {'year': 2013}
-    path = f'generated/{args.dataset}/{str(constraints)}/'
+    fig, axs = plt.subplots(3, 4, sharex=True, sharey=True)
+    dataset = 'PanamaEnergy'
+    preprocessor = Preprocessor(dataset, False)
+    row = 0
+    diffs = np.zeros((3, 4))
+    stds = np.zeros((3, 4))
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
+        for task in ['C', 'M', 'F']:
+            real = pd.read_csv(f'generated/{dataset}/{task}/real.csv')
+            non_hier_cols = [col for col in real.columns if
+                             col not in preprocessor.hierarchical_features_uncyclic and col != 'Unnamed: 0']
+            filt = real[non_hier_cols]
+            acs = {channel: np.zeros((1, 100)) for channel in filt.columns}
+            acs_hyacinth = {channel: np.zeros((5, 100)) for channel in filt.columns}
+            acs_tsdiff = {channel: np.zeros((5, 100)) for channel in filt.columns}
+            acs_timeweaver = {channel: np.zeros((5, 100)) for channel in filt.columns}
+            for lags in range(100):
+                for channel in filt.columns:
+                    acs[channel][0, lags] = (pd.Series(filt[channel]).autocorr(lag=lags))
 
-    if args.propCycEnc:
-        synthetic_df = pd.read_csv(f'{path}synth_dnq_stride_{args.stride}_prop.csv').drop(columns=['Unnamed: 0'])
-    else:
-        synthetic_df = pd.read_csv(f'{path}synth_dnq_stride_{args.stride}.csv').drop(columns=['Unnamed: 0'])
-    real_df = pd.read_csv(f'{path}real.csv').drop(columns=['Unnamed: 0'])
-    preprocessor = Preprocessor(dataset, args.propCycEnc)
-    real_df = real_df[preprocessor.df_orig.columns]
-    real_df_cyclic_normalized = preprocessor.scale(preprocessor.cyclicEncode(real_df))
-    synthetic_df_cyclic_normalized = preprocessor.scale(preprocessor.cyclicEncode(synthetic_df))
-    hierarchical_column_indices = synthetic_df_cyclic_normalized.columns.get_indexer(
-        preprocessor.hierarchical_features_cyclic)
-    all_indices = np.arange(len(synthetic_df_cyclic_normalized.columns))
-    remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
-    non_hier_cols = np.array(remaining_indices)
+            for trial in range(5):
+                hyacinth = pd.read_csv(
+                    f'generated/{dataset}/{task}/synth_hyacinth_pipeline_stride_8_trial_{trial}_cycStd.csv')
+                tsdiff = pd.read_csv(f'generated/{dataset}/{task}/synth_tsdiff_strength_1.0_trial_0.csv')
+                timeweaver = pd.read_csv(f'generated/{dataset}/{task}/synth_timeweaver_trial_0_cycStd.csv')
+                filt_hyacinth = hyacinth[non_hier_cols]
+                filt_tsdiff = tsdiff[non_hier_cols]
+                filt_timeweaver = timeweaver[non_hier_cols]
 
-    corr_real = real_df_cyclic_normalized.iloc[:, non_hier_cols].corr()
-    corr_synth = synthetic_df_cyclic_normalized.iloc[:, non_hier_cols].corr()
-    corr_real.fillna(0, inplace=True)
-    corr_synth.fillna(0, inplace=True)
-    for column in corr_real.columns:
-        corr_real.loc[column, column] = 1
-        corr_synth.loc[column, column] = 1
-    corr_diff = corr_real - corr_synth
+                for lags in range(100):
+                    for channel in filt.columns:
+                        acs_hyacinth[channel][trial, lags] = (pd.Series(filt_hyacinth[channel]).autocorr(lag=lags))
+                        acs_tsdiff[channel][trial, lags] = (pd.Series(filt_tsdiff[channel]).autocorr(lag=lags))
+                        acs_timeweaver[channel][trial, lags] = (pd.Series(filt_timeweaver[channel]).autocorr(lag=lags))
 
-    # Step 4: Plot the three matrices side-by-side in a single figure
+            for key in acs.keys():
+                diffs[row, 0] = 0.0
+                diffs[row, 1] = np.mean(abs(acs[key][0] - np.mean(acs_hyacinth[key], axis=0)))
+                diffs[row, 2] = np.mean(abs(acs[key][0] - np.mean(acs_tsdiff[key], axis=0)))
+                diffs[row, 3] = np.mean(abs(acs[key][0] - np.mean(acs_timeweaver[key], axis=0)))
 
-    plt.figure(figsize=(21, 6))  # Adjust figure size to accommodate 3 plots
+            for key in acs.keys():
+                axs[row, 0].plot(acs[key][0], label=key)
+                axs[row, 0].set_title(f'{diffs[row, 0]: .2f}')
+                axs[row, 1].plot(np.mean(acs_hyacinth[key], axis=0), label=key)
+                axs[row, 1].set_title(f'{diffs[row, 1]: .2f}')
+                axs[row, 2].plot(np.mean(acs_tsdiff[key], axis=0), label=key)
+                axs[row, 2].set_title(f'{diffs[row, 2]: .2f}')
+                axs[row, 3].plot(np.mean(acs_timeweaver[key], axis=0), label=key)
+                axs[row, 3].set_title(f'{diffs[row, 3]: .2f}')
+            row += 1
 
-    # Plot for real data
-    plt.subplot(1, 3, 1)
-    sns.heatmap(corr_real, annot=False, cmap='coolwarm', vmin=-1, vmax=1)
-    plt.title('Real Data Correlation Matrix')
-
-    # Plot for synthetic data
-    plt.subplot(1, 3, 2)
-    sns.heatmap(corr_synth, annot=False, cmap='coolwarm', vmin=-1, vmax=1)
-    plt.title('Synthetic Data Correlation Matrix')
-
-    # Plot for difference
-    plt.subplot(1, 3, 3)
-    sns.heatmap(corr_diff, annot=False, cmap='coolwarm', vmin=-1, vmax=1)
-    plt.title('Difference Between Correlation Matrices')
-
-    plt.tight_layout()  # Ensures the plots don’t overlap
-    plt.show()
+    axs[2, 0].set_xlabel('Real')
+    axs[2, 1].set_xlabel('Hyacinth')
+    axs[2, 2].set_xlabel('TSDiff')
+    axs[2, 3].set_xlabel('TimeWeaver')
+    axs[0, 0].set_ylabel('C', rotation=0)
+    axs[1, 0].set_ylabel('M', rotation=0)
+    axs[2, 0].set_ylabel('F', rotation=0)
+    plt.savefig(f'acfplot{dataset}.pdf', bbox_inches='tight')

@@ -89,20 +89,9 @@ if __name__ == "__main__":
     mask_dataloader = DataLoader(mask_dataset, batch_size=args.batch_size)
     all_indices = np.arange(len(df_synth.columns))
     remaining_indices = np.setdiff1d(all_indices, hierarchical_column_indices)
-    d_model = 2 * (len(preprocessor.df_orig.columns) - len(preprocessor.hierarchical_features))
-    saved_params_autoenc = torch.load(f'saved_models/{args.dataset}/model_autoenc_onehot.pth', map_location=device)
-    model_autoenc = TransformerAutoEncoderOneHot(input_dim=len(remaining_indices), d_model=d_model).to(device)
-    with torch.no_grad():
-        for name, param in model_autoenc.named_parameters():
-            param.copy_(saved_params_autoenc[name])
-            param.requires_grad = False
-    model_autoenc.eval()
-
-    latent_hierarchical_indices = np.arange(0, len(hierarchical_column_indices))
-    latent_non_hierarchical_indices = np.arange(len(hierarchical_column_indices), len(hierarchical_column_indices) + d_model)
-
-    in_dim = len(latent_hierarchical_indices) + len(latent_non_hierarchical_indices)
-    out_dim = len(latent_non_hierarchical_indices)
+    in_dim = len(test_df.columns)
+    out_dim = len(test_df.columns) - len(hierarchical_column_indices)
+    non_hier_cols = np.array(remaining_indices)
     model = fetchModel(in_dim, out_dim, args).to(device)
 
     diffusion_config = fetchDiffusionConfig(args)
@@ -118,68 +107,56 @@ if __name__ == "__main__":
     model.eval()
 
     for trial in range(args.n_trials):
-        with torch.no_grad():
-            synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
-            for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
-                test_batch = test_batch.to(device)
-                mask_batch = mask_batch.to(device)
-                latent_test_batch = model_autoenc.encode(test_batch[:, :, remaining_indices])
-                latent_test_batch = torch.cat((test_batch[:, :, hierarchical_column_indices], latent_test_batch), 2)
-                x = create_pipelined_noise(latent_test_batch, args).to(device)
-                x[:, :, latent_hierarchical_indices] = latent_test_batch[:, :, latent_hierarchical_indices]
-                print(f'batch: {idx} of {len(test_dataloader)}')
-                for step in range(diffusion_config['T'] - 1, -1, -1):
-                    print(f"backward step: {step}")
-                    times = torch.full(size=(latent_test_batch.shape[0], 1), fill_value=step).to(device)
-                    alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
-                    alpha_bar_t_1 = diffusion_config['alpha_bars'][step - 1].to(device)
-                    alpha_t = diffusion_config['alphas'][step].to(device)
-                    beta_t = diffusion_config['betas'][step].to(device)
+        synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
+        for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
+            test_batch = test_batch.to(device)
+            mask_batch = mask_batch.to(device)
+            x = create_pipelined_noise(test_batch, args).to(device)
+            x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
+            print(f'batch: {idx} of {len(test_dataloader)}')
+            for step in range(diffusion_config['T'] - 1, -1, -1):
+                print(f"backward step: {step}")
+                times = torch.full(size=(test_batch.shape[0], 1), fill_value=step).to(device)
+                alpha_bar_t = diffusion_config['alpha_bars'][step].to(device)
+                alpha_bar_t_1 = diffusion_config['alpha_bars'][step - 1].to(device)
+                alpha_t = diffusion_config['alphas'][step].to(device)
+                beta_t = diffusion_config['betas'][step].to(device)
 
-                    sampled_noise = create_pipelined_noise(latent_test_batch, args).to(device)
-                    cached_denoising = torch.sqrt(alpha_bar_t) * latent_test_batch + torch.sqrt(1 - alpha_bar_t) * sampled_noise
-                    mask_expanded = torch.zeros_like(latent_test_batch, dtype=bool)
-                    for channel in latent_non_hierarchical_indices:
-                        mask_expanded[:, :, channel] = mask_batch
+                sampled_noise = create_pipelined_noise(test_batch, args).to(device)
+                cached_denoising = torch.sqrt(alpha_bar_t) * test_batch + torch.sqrt(
+                    1 - alpha_bar_t) * sampled_noise
+                mask_expanded = torch.zeros_like(test_batch, dtype=bool)
+                for channel in non_hier_cols:
+                    mask_expanded[:, :, channel] = mask_batch
 
-                    x[~mask_expanded] = cached_denoising[~mask_expanded]
-                    x[:, :, latent_hierarchical_indices] = latent_test_batch[:, :, latent_hierarchical_indices]
-                    epsilon_pred = model(x, times)
-                    epsilon_pred = epsilon_pred.permute((0, 2, 1))
-                    if step > 0:
-                        vari = beta_t * ((1 - alpha_bar_t_1) / (1 - alpha_bar_t)) * torch.normal(0, 1,
-                                                                                                 size=epsilon_pred.shape).to(
-                            device)
-                    else:
-                        vari = 0.0
-
-                    normal_denoising = create_pipelined_noise(latent_test_batch, args).to(device)
-                    normal_denoising[:, :, latent_non_hierarchical_indices] = (x[:, :, latent_non_hierarchical_indices] - (
-                            (beta_t / torch.sqrt(1 - alpha_bar_t)) * epsilon_pred)) / torch.sqrt(alpha_t)
-                    normal_denoising[:, :, latent_non_hierarchical_indices] += vari
-                    masked_binary = mask_batch.int()
-                    # x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
-                    x[mask_expanded] = normal_denoising[mask_expanded]
-                    x[~mask_expanded] = latent_test_batch[~mask_expanded]
-                    rolled_x = x.roll(1, 0)
-                    x[1:, : args.window_size - 1, :] = rolled_x[1:, 1: args.window_size, :]
-                    # if step == 0:
-                    #     x[~mask_batch][:, non_hier_cols] = test_batch[~mask_batch][:, non_hier_cols]
-                    #     k = x[~mask_batch][:, non_hier_cols]
-
-                x_decoded = model_autoenc.decode(x[:, :, latent_non_hierarchical_indices])
-                x_decoded = torch.cat((x[:, :, latent_hierarchical_indices], x_decoded), dim=2)
-                first_sample = x_decoded[0]
-                last_timesteps = x_decoded[1:, -1, :]
-                if idx == 0:
-                    generated = torch.cat((first_sample, last_timesteps), dim=0)
+                x[~mask_expanded] = cached_denoising[~mask_expanded]
+                x[:, :, hierarchical_column_indices] = test_batch[:, :, hierarchical_column_indices]
+                epsilon_pred = model(x, times)
+                epsilon_pred = epsilon_pred.permute((0, 2, 1))
+                if step > 0:
+                    vari = beta_t * ((1 - alpha_bar_t_1) / (1 - alpha_bar_t)) * torch.normal(0, 1,
+                                                                                             size=epsilon_pred.shape).to(
+                        device)
                 else:
-                    generated = x_decoded[:, -1, :]
-                temp_hierarchy = generated[:, :len(hierarchical_column_indices)].clone()
-                temp_non_hierarchy = generated[:, len(hierarchical_column_indices):].clone()
-                generated[:, remaining_indices] = temp_non_hierarchy
-                generated[:, hierarchical_column_indices] = temp_hierarchy
-                synth_tensor = torch.cat((synth_tensor, generated), dim=0)
+                    vari = 0.0
+
+                normal_denoising = create_pipelined_noise(test_batch, args).to(device)
+                normal_denoising[:, :, non_hier_cols] = (x[:, :, non_hier_cols] - (
+                        (beta_t / torch.sqrt(1 - alpha_bar_t)) * epsilon_pred)) / torch.sqrt(alpha_t)
+                normal_denoising[:, :, non_hier_cols] += vari
+                masked_binary = mask_batch.int()
+                # x[mask_batch][:, non_hier_cols] = normal_denoising[mask_batch]
+                x[mask_expanded] = normal_denoising[mask_expanded]
+                x[~mask_expanded] = test_batch[~mask_expanded]
+                rolled_x = x.roll(1, 0)
+                x[1:, : args.window_size - 1, :] = rolled_x[1:, 1: args.window_size, :]
+            first_sample = x[0]
+            last_timesteps = x[1:, -1, :]
+            if idx == 0:
+                generated = torch.cat((first_sample, last_timesteps), dim=0)
+            else:
+                generated = x[:, -1, :]
+            synth_tensor = torch.cat((synth_tensor, generated), dim=0)
 
         df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
         real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)

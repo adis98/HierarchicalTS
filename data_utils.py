@@ -169,12 +169,12 @@ class Preprocessor:
                 # Create a multi-index by city and weather parameter
                 # We melt the dataframe to unpivot the city-specific columns and create a 'city' column
                 df = pd.melt(df,
-                                    id_vars=['datetime'],
-                                    value_vars=['T2M_toc', 'QV2M_toc', 'TQL_toc', 'W2M_toc',
-                                                'T2M_san', 'QV2M_san', 'TQL_san', 'W2M_san',
-                                                'T2M_dav', 'QV2M_dav', 'TQL_dav', 'W2M_dav'],
-                                    var_name='variable',
-                                    value_name='value')
+                             id_vars=['datetime'],
+                             value_vars=['T2M_toc', 'QV2M_toc', 'TQL_toc', 'W2M_toc',
+                                         'T2M_san', 'QV2M_san', 'TQL_san', 'W2M_san',
+                                         'T2M_dav', 'QV2M_dav', 'TQL_dav', 'W2M_dav'],
+                             var_name='variable',
+                             value_name='value')
 
                 # Split 'variable' column into 'city' and 'parameter'
                 df['city'] = df['variable'].str.split('_').str[-1]
@@ -182,8 +182,8 @@ class Preprocessor:
 
                 # Pivot the dataframe to get the parameters as columns and city as a column
                 df = df.pivot_table(index=['datetime', 'city'],
-                                                   columns='parameter',
-                                                   values='value').reset_index()
+                                    columns='parameter',
+                                    values='value').reset_index()
 
                 # Rearranging columns (optional)
                 df['date'] = pd.to_datetime(df['datetime'])
@@ -319,10 +319,19 @@ class PreprocessorOrdinal:
             self.test_indices = temp.loc[temp].index.to_list()
             temp_c = ~temp
             self.train_indices = temp_c.loc[temp_c].index.to_list()
+        elif name == "RossmanSales":
+            self.test_indices = self.df_orig.index[self.df_orig['Year'].isin([2015])].to_list()
+            self.train_indices = self.df_orig.index[~self.df_orig['Year'].isin([2015])].to_list()
+        elif name == "PanamaEnergy":
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2020])].to_list()
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2020])].to_list()
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
-            df = pd.read_csv(datasets[name])
+            if name == "RossmanSales":
+                df = pd.read_csv(datasets[name], dtype={'StateHoliday': 'object'})
+            else:
+                df = pd.read_csv(datasets[name])
             if name == "MetroTraffic":
                 df['date_time'] = pd.to_datetime(df['date_time'])
                 df['year'] = df['date_time'].dt.year
@@ -340,6 +349,50 @@ class PreprocessorOrdinal:
                 df.drop(columns=['date_time', 'day', 'hour', 'Quarter', 'Unnamed: 0'], inplace=True)
                 df = df.sort_values(by=['year', 'month', 'State', 'Region', 'Purpose']).reset_index(drop=True)
                 self.hierarchical_features = ['year', 'month', 'State', 'Region', 'Purpose']
+            elif name == "RossmanSales":
+                store_ids = df['Store'].unique()[:10]
+                df = df[(df['Store'].isin(store_ids)) & (df['Open'] == 1)]
+
+                df['Datetime'] = pd.to_datetime(df['Date'])
+                df['Year'] = df['Datetime'].dt.year
+                df['Month'] = df['Datetime'].dt.month
+                df['Day'] = df['Datetime'].dt.day
+                df.drop(columns=['Datetime', 'Promo', 'Open'], inplace=True)
+                df = df.sort_values(by=['Year', 'Month', 'Day', 'Store'], ignore_index=True)
+                df = df[['Year', 'Month', 'Day', 'Store', 'Sales', 'Customers']]
+                self.hierarchical_features = ['Year', 'Month', 'Day', 'Store']
+            elif name == "PanamaEnergy":
+                df = df.drop(columns=['nat_demand', 'Holiday_ID', 'holiday', 'school'])
+
+                # Create a multi-index by city and weather parameter
+                # We melt the dataframe to unpivot the city-specific columns and create a 'city' column
+                df = pd.melt(df,
+                             id_vars=['datetime'],
+                             value_vars=['T2M_toc', 'QV2M_toc', 'TQL_toc', 'W2M_toc',
+                                         'T2M_san', 'QV2M_san', 'TQL_san', 'W2M_san',
+                                         'T2M_dav', 'QV2M_dav', 'TQL_dav', 'W2M_dav'],
+                             var_name='variable',
+                             value_name='value')
+
+                # Split 'variable' column into 'city' and 'parameter'
+                df['city'] = df['variable'].str.split('_').str[-1]
+                df['parameter'] = df['variable'].str.split('_').str[0]
+
+                # Pivot the dataframe to get the parameters as columns and city as a column
+                df = df.pivot_table(index=['datetime', 'city'],
+                                    columns='parameter',
+                                    values='value').reset_index()
+
+                # Rearranging columns (optional)
+                df['date'] = pd.to_datetime(df['datetime'])
+                df['year'] = df['date'].dt.year
+                df['month'] = df['date'].dt.month
+                df['day'] = df['date'].dt.day
+                df['hour'] = df['date'].dt.hour
+                df.drop(columns=['date', 'datetime'], inplace=True)
+                df = df[['year', 'month', 'day', 'hour', 'city', 'T2M', 'TQL', 'W2M', 'QV2M']]
+                df = df.sort_values(by=['year', 'month', 'day', 'hour', 'city'], ignore_index=True)
+                self.hierarchical_features = ['year', 'month', 'day', 'hour', 'city']
 
         else:
             dfs = []
@@ -347,9 +400,10 @@ class PreprocessorOrdinal:
             csvs.sort()
             for file in csvs[:6]:
                 dfs.append(pd.read_csv(datasets[name] + "/" + file))
-            df = pd.concat(dfs)
-            df.drop(columns=['No', 'wd'], inplace=True).reset_index(drop=True)  # redundant
-
+            df = pd.concat(dfs, ignore_index=True)
+            df.drop(columns=['No', 'wd'], inplace=True)  # redundant
+            self.hierarchical_features = ['year', 'station', 'month', 'day', 'hour']
+            df = df.sort_values(by=self.hierarchical_features).reset_index(drop=True)
         if return_cleaned:
             df_cleaned = self.cleanDataset(name, df)
             return df_cleaned
@@ -373,6 +427,12 @@ class PreprocessorOrdinal:
         elif name == "AustraliaTourism":
             if self.encoded_columns is None:
                 self.encoded_columns = ['State', 'Region', 'Purpose', 'year', 'month']
+        elif name == "RossmanSales":
+            if self.encoded_columns is None:
+                self.encoded_columns = ['Year', 'Month', 'Day', 'Store']
+        elif name == "PanamaEnergy":
+            if self.encoded_columns is None:
+                self.encoded_columns = ['year', 'month', 'day', 'hour', 'city']
 
         df_encoded = self.ordinalEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 
@@ -477,10 +537,19 @@ class PreprocessorOneHot:
             self.test_indices = temp.loc[temp].index.to_list()
             temp_c = ~temp
             self.train_indices = temp_c.loc[temp_c].index.to_list()
+        elif name == "RossmanSales":
+            self.test_indices = self.df_orig.index[self.df_orig['Year'].isin([2015])].to_list()
+            self.train_indices = self.df_orig.index[~self.df_orig['Year'].isin([2015])].to_list()
+        elif name == "PanamaEnergy":
+            self.test_indices = self.df_orig.index[self.df_orig['year'].isin([2020])].to_list()
+            self.train_indices = self.df_orig.index[~self.df_orig['year'].isin([2020])].to_list()
 
     def fetchDataset(self, name, return_cleaned):
         if name != "BeijingAirQuality":
-            df = pd.read_csv(datasets[name])
+            if name == "RossmanSales":
+                df = pd.read_csv(datasets[name], dtype={'StateHoliday': 'object'})
+            else:
+                df = pd.read_csv(datasets[name])
             if name == "MetroTraffic":
                 df['date_time'] = pd.to_datetime(df['date_time'])
                 df['year'] = df['date_time'].dt.year
@@ -498,6 +567,50 @@ class PreprocessorOneHot:
                 df.drop(columns=['date_time', 'day', 'hour', 'Quarter', 'Unnamed: 0'], inplace=True)
                 df = df.sort_values(by=['year', 'month', 'State', 'Region', 'Purpose']).reset_index(drop=True)
                 self.hierarchical_features = ['year', 'month', 'State', 'Region', 'Purpose']
+            elif name == "RossmanSales":
+                store_ids = df['Store'].unique()[:10]
+                df = df[(df['Store'].isin(store_ids)) & (df['Open'] == 1)]
+
+                df['Datetime'] = pd.to_datetime(df['Date'])
+                df['Year'] = df['Datetime'].dt.year
+                df['Month'] = df['Datetime'].dt.month
+                df['Day'] = df['Datetime'].dt.day
+                df.drop(columns=['Datetime', 'Promo', 'Open'], inplace=True)
+                df = df.sort_values(by=['Year', 'Month', 'Day', 'Store'], ignore_index=True)
+                df = df[['Year', 'Month', 'Day', 'Store', 'Sales', 'Customers']]
+                self.hierarchical_features = ['Year', 'Month', 'Day', 'Store']
+            elif name == "PanamaEnergy":
+                df = df.drop(columns=['nat_demand', 'Holiday_ID', 'holiday', 'school'])
+
+                # Create a multi-index by city and weather parameter
+                # We melt the dataframe to unpivot the city-specific columns and create a 'city' column
+                df = pd.melt(df,
+                             id_vars=['datetime'],
+                             value_vars=['T2M_toc', 'QV2M_toc', 'TQL_toc', 'W2M_toc',
+                                         'T2M_san', 'QV2M_san', 'TQL_san', 'W2M_san',
+                                         'T2M_dav', 'QV2M_dav', 'TQL_dav', 'W2M_dav'],
+                             var_name='variable',
+                             value_name='value')
+
+                # Split 'variable' column into 'city' and 'parameter'
+                df['city'] = df['variable'].str.split('_').str[-1]
+                df['parameter'] = df['variable'].str.split('_').str[0]
+
+                # Pivot the dataframe to get the parameters as columns and city as a column
+                df = df.pivot_table(index=['datetime', 'city'],
+                                    columns='parameter',
+                                    values='value').reset_index()
+
+                # Rearranging columns (optional)
+                df['date'] = pd.to_datetime(df['datetime'])
+                df['year'] = df['date'].dt.year
+                df['month'] = df['date'].dt.month
+                df['day'] = df['date'].dt.day
+                df['hour'] = df['date'].dt.hour
+                df.drop(columns=['date', 'datetime'], inplace=True)
+                df = df[['year', 'month', 'day', 'hour', 'city', 'T2M', 'TQL', 'W2M', 'QV2M']]
+                df = df.sort_values(by=['year', 'month', 'day', 'hour', 'city'], ignore_index=True)
+                self.hierarchical_features = ['year', 'month', 'day', 'hour', 'city']
 
         else:
             dfs = []
@@ -505,9 +618,10 @@ class PreprocessorOneHot:
             csvs.sort()
             for file in csvs[:6]:
                 dfs.append(pd.read_csv(datasets[name] + "/" + file))
-            df = pd.concat(dfs)
-            df.drop(columns=['No', 'wd'], inplace=True) .reset_index(drop=True)
-
+            df = pd.concat(dfs, ignore_index=True)
+            df.drop(columns=['No', 'wd'], inplace=True)  # redundant
+            self.hierarchical_features = ['year', 'station', 'month', 'day', 'hour']
+            df = df.sort_values(by=self.hierarchical_features).reset_index(drop=True)
         if return_cleaned:
             df_cleaned = self.cleanDataset(name, df)
             return df_cleaned
@@ -522,12 +636,21 @@ class PreprocessorOneHot:
             for column in df_clean.columns:
                 if df_clean[column].dtype != 'object':
                     df_clean[column] = df_clean[column].interpolate()
-            self.onehot_encoded_columns = ['year', 'month', 'day', 'hour', 'station']
+            if len(self.onehot_encoded_columns) == 0:
+                self.onehot_encoded_columns = ['year', 'month', 'day', 'hour', 'station']
 
         elif name == 'MetroTraffic':
-            self.onehot_encoded_columns = ['year', 'month', 'day', 'hour']
+            if len(self.onehot_encoded_columns) == 0:
+                self.onehot_encoded_columns = ['year', 'month', 'day', 'hour']
         elif name == "AustraliaTourism":
-            self.onehot_encoded_columns = ['State', 'Region', 'Purpose', 'year', 'month']
+            if len(self.onehot_encoded_columns) == 0:
+                self.onehot_encoded_columns = ['State', 'Region', 'Purpose', 'year', 'month']
+        elif name == "RossmanSales":
+            if len(self.onehot_encoded_columns) == 0:
+                self.onehot_encoded_columns = ['Year', 'Month', 'Day', 'Store']
+        elif name == "PanamaEnergy":
+            if len(self.onehot_encoded_columns) == 0:
+                self.onehot_encoded_columns = ['year', 'month', 'day', 'hour', 'city']
 
         df_onehot = self.onehotEncode(df_clean)  # returns the dataframe with cyclic encoding applied
 

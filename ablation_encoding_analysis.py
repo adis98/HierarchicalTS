@@ -6,16 +6,15 @@ from data_utils import Preprocessor, PreprocessorOrdinal, PreprocessorOneHot
 
 if __name__ == "__main__":
     datasets = ["MetroTraffic", "AustraliaTourism"]
-    encodings = ["STD", "PROP", "ORD", "OHE"]
+    encodings = ["STD", "ORD", "OHE"]
     ablation_encoding_csv = pd.DataFrame(columns=["Dataset", "Encoding", "Mask", "Avg. hit acc.", "Std. hit acc.", "Avg. MSE", "Std. MSE"])
     mask_levels = ["C", "M", "F"]
     num_trials = 5
     for dataset in datasets:
         preprocessor_cycstd = Preprocessor(dataset, False)
-        preprocessor_cycprop = Preprocessor(dataset, True)
         preprocessor_ord = PreprocessorOrdinal(dataset)
         preprocessor_ohe = PreprocessorOneHot(dataset)
-        preprocessors = {"STD": preprocessor_cycstd, "PROP": preprocessor_cycprop, "ORD": preprocessor_ord, "OHE": preprocessor_ohe}
+        preprocessors = {"STD": preprocessor_cycstd, "ORD": preprocessor_ord, "OHE": preprocessor_ohe}
         non_hierarchical_features = [col for col in preprocessor_ord.df_orig.columns if col not in preprocessor_ord.hierarchical_features]
         for mask in mask_levels:
             dir_path = f"generated/{dataset}/{mask}/"
@@ -31,10 +30,8 @@ if __name__ == "__main__":
                         path_synth = os.path.join(dir_path, f"synth_hyacinth_trial_{trial}_onehot.csv")
                     elif encoding == "ORD":
                         path_synth = os.path.join(dir_path, f'synth_hyacinth_trial_{trial}_ordinal.csv')
-                    elif encoding == "PROP":
+                    elif encoding == "STD":
                         path_synth = os.path.join(dir_path, f'synth_hyacinth_trial_{trial}_cycStd.csv')
-                    else:
-                        path_synth = os.path.join(dir_path, f'synth_hyacinth_trial_{trial}_cycProp.csv')
 
                     df_synth = pd.read_csv(path_synth).drop(columns=['Unnamed: 0'])
                     cat_non_hier_columns = [col for col in non_hierarchical_features if col in preprocessor_ohe.onehot_encoded_columns]
