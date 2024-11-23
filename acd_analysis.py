@@ -3,7 +3,7 @@ import numpy as np
 from data_utils import Preprocessor
 import os
 import warnings
-lags = 50
+lags = 100
 if __name__ == "__main__":
     acdtable = pd.DataFrame(
         columns=['Dataset', 'Method', 'Level', 'Avg. ACD', 'Std. ACD'])
