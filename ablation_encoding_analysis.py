@@ -7,7 +7,7 @@ from data_utils import Preprocessor, PreprocessorOrdinal, PreprocessorOneHot
 if __name__ == "__main__":
     datasets = ["MetroTraffic", "AustraliaTourism", "PanamaEnergy", "RossmanSales"]
     encodings = ["STD", "ORD", "OHE"]
-    ablation_encoding_csv = pd.DataFrame(columns=["Dataset", "Encoding", "Mask", "Avg. MSE", "Std. MSE", "stride"])
+    ablation_encoding_csv = pd.DataFrame(columns=["Dataset", "Encoding", "Mask", "Avg. MSE", "Std. MSE", "stride", "indim"])
     mask_levels = ["C", "M", "F"]
     num_trials = 5
     for dataset in datasets:
@@ -26,6 +26,7 @@ if __name__ == "__main__":
                 for encoding in encodings:
                     hit_accuracies = []
                     mses = []
+                    indim = preprocessors[encoding].df_cleaned.values.shape[1]
                     for trial in range(num_trials):
                         if encoding == "OHE":
                             path_synth = os.path.join(dir_path, f"synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_onehot.csv")
@@ -58,7 +59,7 @@ if __name__ == "__main__":
                     AVG_MEAN, MEAN_STDDEV = np.mean(mses), np.std(mses)
 
                     row = {"Dataset": dataset, "Encoding": encoding, "Mask": mask,
-                           "Avg. MSE": AVG_MEAN, "Std. MSE": MEAN_STDDEV, "stride": stride}
+                           "Avg. MSE": AVG_MEAN, "Std. MSE": MEAN_STDDEV, "stride": stride, 'indim': indim}
 
                     ablation_encoding_csv.loc[len(ablation_encoding_csv)] = row
 

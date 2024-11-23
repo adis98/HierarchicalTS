@@ -9,8 +9,7 @@ if __name__ == "__main__":
         columns=['Dataset', 'Method', 'Level', 'Avg. ACD', 'Std. ACD'])
     for dataset in ["MetroTraffic", "RossmanSales", "BeijingAirQuality", "AustraliaTourism", "PanamaEnergy"]:
         preprocessor = Preprocessor(dataset, False)
-        for method in ["timegan", "timeweaver", "tsdiff-0.0", "tsdiff-0.5", 'tsdiff-1.0', 'tsdiff-2.0', 'algo-1',
-                       'algo-8', 'algo-16', 'algo-32']:
+        for method in ['algo-8', "timegan", "timeweaver", "tsdiff-0.5"]:
             for mask in ['C', 'M', 'F']:
                 real = pd.read_csv(f'generated/{dataset}/{mask}/real.csv')
                 non_hier_cols = [col for col in real.columns if

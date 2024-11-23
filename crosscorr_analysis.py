@@ -7,7 +7,7 @@ import os
 if __name__ == "__main__":
     xcorrdtable = pd.DataFrame(
         columns=['Dataset', 'Method', 'Level', 'Avg. xcorrD', 'Std. xcorrD'])
-    for dataset in ["MetroTraffic", "RossmanSales", "BeijingAirQuality", "AustraliaTourism", "PanamaEnergy"]:
+    for dataset in ["AustraliaTourism", "MetroTraffic", "RossmanSales", "BeijingAirQuality", "PanamaEnergy"]:
         preprocessor = Preprocessor(dataset, False)
         for method in ["timegan", "timeweaver", "tsdiff-0.0", "tsdiff-0.5", 'tsdiff-1.0', 'tsdiff-2.0', 'algo-1',
                        'algo-8', 'algo-16', 'algo-32']:
