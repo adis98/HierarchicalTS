@@ -156,7 +156,7 @@ if __name__ == "__main__":
                         normal_denoising = create_pipelined_noise(test_batch, args).to(device)
                         normal_denoising[:, :, non_hier_cols] = (x[:, :, non_hier_cols] - (
                                 (beta_t / torch.sqrt(1 - alpha_bar_t)) * epsilon_pred)) / torch.sqrt(alpha_t)
-                        # normal_denoising[:, :, non_hier_cols] += vari
+                        normal_denoising[:, :, non_hier_cols] += vari
                         masked_binary = mask_batch.int()
 
                         # x[:, :, non_hier_cols] = normal_denoising[:, :, non_hier_cols]
@@ -169,10 +169,11 @@ if __name__ == "__main__":
                         loss = loss1 + loss2
                         # print(torch.sum(loss.cpu()))
                         grad = torch.autograd.grad(loss, x, grad_outputs=torch.ones_like(loss))[0]
+
                     x[:, :, non_hier_cols] = normal_denoising[:, :, non_hier_cols]
                     eps = -0.1 * grad[:, :, non_hier_cols]
                     x[:, :, non_hier_cols] = x[:, :, non_hier_cols] + eps
-                    x[:, :, non_hier_cols] += eps/sqrt(alpha_t) - (eps*beta_t/(sqrt(alpha_t)*sqrt(1-alpha_bar_t))) * grad_xt[:, :, non_hier_cols]
+                    # x[:, :, non_hier_cols] += eps/sqrt(alpha_t) - (eps*beta_t/(sqrt(alpha_t)*sqrt(1-alpha_bar_t))) * grad_xt[:, :, non_hier_cols]
                     # x[1:, : (args.window_size - args.stride), :] = rolled_x[1:, args.stride: args.window_size, :]
                     # x[~mask_expanded] = test_batch[~mask_expanded]
                     # if step == 0:
@@ -220,18 +221,18 @@ if __name__ == "__main__":
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
         if args.propCycEnc:
             synth_df_reconverted_selected.to_csv(
-                f'{path}synth_wavestitch_pipeline_stride_{args.stride}_trial_{trial}_cycProp_grad.csv')
+                f'{path}synth_wavestitch_pipeline_stride_{args.stride}_trial_{trial}_cycProp_grad_simplecoeff.csv')
             if trial == 0:
-                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycProp_grad.txt', 'w') as file:
+                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycProp_grad_simplecoeff.txt', 'w') as file:
                     file.write(str(num_ops))
         else:
             synth_df_reconverted_selected.to_csv(
-                f'{path}synth_wavestitch_pipeline_stride_{args.stride}_trial_{trial}_cycStd_grad.csv')
+                f'{path}synth_wavestitch_pipeline_stride_{args.stride}_trial_{trial}_cycStd_grad_simplecoeff.csv')
             if trial == 0:
-                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycStd_grad.txt', 'w') as file:
+                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycStd_grad_simplecoeff.txt', 'w') as file:
                     file.write(str(num_ops))
 
-    with open(f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_pipeline_stride_{args.stride}_cycStd_grad.txt',
+    with open(f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_pipeline_stride_{args.stride}_cycStd_grad_simplecoeff.txt',
               'a') as file:
         arr_time = np.array(exec_times)
         file.write('\n' + str(np.mean(arr_time)) + '\n')

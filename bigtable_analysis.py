@@ -28,7 +28,7 @@ if __name__ == "__main__":
                     elif "Pipe" in method:
                         stride = int(method.split('-')[1])
                         df_synth = pd.read_csv(
-                            f'generated/{dataset}/{level}/synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_cycStd.csv')
+                            f'generated/{dataset}/{level}/synth_wavestitch_pipeline_stride_{stride}_trial_{trial}_cycStd_grad_simplecoeff.csv')
                     elif method == "TimeWeaver":
                         df_synth = pd.read_csv(
                             f'generated/{dataset}/{level}/synth_timeweaver_trial_{trial}_cycStd.csv')
@@ -53,7 +53,7 @@ if __name__ == "__main__":
             path = "experiments/bigtable/"
             if not os.path.exists(path):
                 os.makedirs(path)
-            final_path = os.path.join(path, "bigtable.csv")
+            final_path = os.path.join(path, "bigtable_wavestitch_grad_simplecoeff.csv")
             bigtable.to_csv(final_path)
 
 

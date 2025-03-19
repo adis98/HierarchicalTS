@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 generated/
+# Images
+*.pdf
 # C extensions
 *.so
 *.DS_Store
