@@ -39,23 +39,20 @@ if __name__ == "__main__":
     """bigtable"""
     df = pd.read_csv('experiments/bigtable/bigtable.csv')
     # mapper = {"AR-16": "AR-16", "AR-32": "AR-32", "DNQ": "DNQ", "Pipe": "Pipe", "Pipe-1": "Pipe-1", "Pipe-8": "Pipe-8", "Pipe-16": "Pipe-16", "Pipe-32": "Pipe-32", "AR-8": "AR-8"}
-    for method in ["TimeGAN", "TimeWeaver", "TSDiff-0", "TSDiff-0.5", "TSDiff-1.0", "TSDiff-2.0", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
-        for dataset in ["AustraliaTourism", "MetroTraffic", "BeijingAirQuality", "RossmanSales", "PanamaEnergy"]:
-            for level in ["C", "M", "F"]:
+    levelMapper = {"C": "R", "M": "I", "F": "B"}
+    for dataset in ["AustraliaTourism", "MetroTraffic", "BeijingAirQuality", "RossmanSales", "PanamaEnergy"]:
+        for level in ["C", "M", "F"]:
+            for method in ["TimeGAN", "TimeWeaver", "TSDiff-0.5", "Pipe-8"]:
                 row = df.loc[(df["Method"] == method) & (df['Dataset'] == dataset) & (df['Level'] == level)]
                 val = row["Avg. MSE"].values[0]
                 std = row["Std. MSE"].values[0]
                 std_decimal = f"{std:.3f}".split(".")[1]
-                if level == "C" and dataset == "AustraliaTourism":
-                    print(
-                        f" {method} & ${val:.3f}_{{.{{{std_decimal}}}}}$",
-                        end="")
+                if method == "TimeGAN":
+                    print(f'{dataset} (\\bemph{{{levelMapper[level]}}}) & ${val: .3f}_{{.{std_decimal}}}$ & ', end="")
+                elif method == "Pipe-8":
+                    print(f'${val: .3f}_{{.{std_decimal}}}$ \\\\')
                 else:
-                    print(
-                        f" & ${val:.3f}_{{.{{{std_decimal}}}}}$",
-                        end=""
-                    )
-        print("\\\\")
+                    print(f'${val: .3f}_{{.{std_decimal}}}$ & ', end="")
 
     # """ACD table"""
     # df = pd.read_csv('experiments/acdtable/acdtable.csv')
