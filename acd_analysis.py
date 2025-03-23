@@ -36,7 +36,7 @@ if __name__ == "__main__":
                         data = pd.read_csv(f'generated/{dataset}/{mask}/synth_tsdiff_strength_{strength}_trial_{trial}.csv')
                     else:
                         stride = method.split('-')[1]
-                        data = pd.read_csv(f'generated/{dataset}/{mask}/synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_cycStd.csv')
+                        data = pd.read_csv(f'generated/{dataset}/{mask}/synth_wavestitch_pipeline_stride_{stride}_trial_{trial}_cycStd_grad_simplecoeff.csv')
                     data = data[non_hier_cols].values
                     stds_meth = np.std(data, axis=0)
                     boolmask_meth = stds_meth == 0
@@ -57,7 +57,7 @@ if __name__ == "__main__":
                 avg = np.mean(arr)
                 std = np.std(arr)
                 if "algo" in method:
-                    tech = 'hyacinth-'+method.split('-')[1]
+                    tech = 'wavestitch-'+method.split('-')[1]
                 else:
                     tech = method
                 row = {"Dataset": dataset, "Method": tech, "Level": mask, 'Avg. ACD': avg, 'Std. ACD': std}
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     path = "experiments/acdtable/"
     if not os.path.exists(path):
         os.makedirs(path)
-    final_path = os.path.join(path, "acdtable.csv")
+    final_path = os.path.join(path, "acdtable_wavestitch_grad_simplecoeff.csv")
     acdtable.to_csv(final_path)
 
 

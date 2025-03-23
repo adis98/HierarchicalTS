@@ -31,7 +31,7 @@ if __name__ == "__main__":
                     else:
                         stride = method.split('-')[1]
                         data = pd.read_csv(
-                            f'generated/{dataset}/{mask}/synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_cycStd.csv')
+                            f'generated/{dataset}/{mask}/synth_wavestitch_pipeline_stride_{stride}_trial_{trial}_cycStd_grad_simplecoeff.csv')
                     data = data[non_hier_cols]
                     xcorr_data = data.corr()
                     diff = (xcorr_real - xcorr_data).abs().mean().mean()
@@ -40,7 +40,7 @@ if __name__ == "__main__":
                 avg = np.mean(arr)
                 std = np.std(arr)
                 if "algo" in method:
-                    tech = 'hyacinth-' + method.split('-')[1]
+                    tech = 'wavestitch-' + method.split('-')[1]
                 else:
                     tech = method
                 row = {"Dataset": dataset, "Method": tech, "Level": mask, 'Avg. xcorrD': avg, 'Std. xcorrD': std}
@@ -48,6 +48,6 @@ if __name__ == "__main__":
     path = "experiments/xcorrdtable/"
     if not os.path.exists(path):
         os.makedirs(path)
-    final_path = os.path.join(path, "xcorrdtable.csv")
+    final_path = os.path.join(path, "xcorrdtable_wavestitch_grad_simplecoeff.csv")
     xcorrdtable.to_csv(final_path)
 
