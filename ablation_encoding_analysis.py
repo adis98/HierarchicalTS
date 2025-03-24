@@ -5,7 +5,7 @@ import pandas as pd
 from data_utils import Preprocessor, PreprocessorOrdinal, PreprocessorOneHot
 
 if __name__ == "__main__":
-    datasets = ["MetroTraffic", "AustraliaTourism", "PanamaEnergy", "RossmanSales"]
+    datasets = ["MetroTraffic", "AustraliaTourism", "PanamaEnergy", "RossmanSales", "BeijingAirQuality"]
     encodings = ["STD", "ORD", "OHE"]
     ablation_encoding_csv = pd.DataFrame(columns=["Dataset", "Encoding", "Mask", "Avg. MSE", "Std. MSE", "stride", "indim"])
     mask_levels = ["C", "M", "F"]
@@ -22,18 +22,18 @@ if __name__ == "__main__":
             df_real = pd.read_csv(path_real).drop(columns=['Unnamed: 0'])
             df_real_scaled = preprocessors["ORD"].cleanDataset(dataset, df_real)
             non_hierarchical_features = [col for col in df_real.columns if col not in preprocessor_ord.hierarchical_features]
-            for stride in [1, 8, 16, 32]:
+            for stride in [8]:
                 for encoding in encodings:
                     hit_accuracies = []
                     mses = []
                     indim = preprocessors[encoding].df_cleaned.values.shape[1]
                     for trial in range(num_trials):
                         if encoding == "OHE":
-                            path_synth = os.path.join(dir_path, f"synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_onehot.csv")
+                            path_synth = os.path.join(dir_path, f"synth_wavestitch_pipeline_stride_{stride}_trial_{trial}_onehot_grad_simplecoeff.csv")
                         elif encoding == "ORD":
-                            path_synth = os.path.join(dir_path, f'synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_ordinal.csv')
+                            path_synth = os.path.join(dir_path, f'synth_wavestitch_pipeline_stride_{stride}_trial_{trial}_ordinal_grad_simplecoeff.csv')
                         elif encoding == "STD":
-                            path_synth = os.path.join(dir_path, f'synth_hyacinth_pipeline_stride_{stride}_trial_{trial}_cycStd.csv')
+                            path_synth = os.path.join(dir_path, f'synth_wavestitch_pipeline_stride_{stride}_trial_{trial}_cycStd_grad_simplecoeff.csv')
 
                         df_synth = pd.read_csv(path_synth).drop(columns=['Unnamed: 0'])
                         cat_non_hier_columns = [col for col in non_hierarchical_features if col in preprocessor_ohe.onehot_encoded_columns]
@@ -66,5 +66,5 @@ if __name__ == "__main__":
     path = "experiments/ablations/encoding/"
     if not os.path.exists(path):
         os.makedirs(path)
-    final_path = os.path.join(path, "ablation_encoding.csv")
+    final_path = os.path.join(path, "ablation_encoding_wavestitch_grad_simplecoeff.csv")
     ablation_encoding_csv.to_csv(final_path)
