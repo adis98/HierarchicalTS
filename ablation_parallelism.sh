@@ -21,12 +21,12 @@ do
 #    python3.12 synthesis_hyacinth_autoregressive.py -d $dataset -synth_mask $synth_mask -stride 16
 
 #    python3.12 synthesis_hyacinth_autoregressive.py -d $dataset -synth_mask $synth_mask -stride 32
-     python3.12 synthesis_wavestitch_autoregressive_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 8
-     python3.12 synthesis_wavestitch_autoregressive_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 16
-     python3.12 synthesis_wavestitch_autoregressive_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 32
-#    python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 1
-#    python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 8
-#    python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 16
-#    python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 32
+#     python3.12 synthesis_wavestitch_autoregressive_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 8
+#     python3.12 synthesis_wavestitch_autoregressive_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 16
+#     python3.12 synthesis_wavestitch_autoregressive_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 32
+    python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 1
+    python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 8
+    python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 16
+    python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride 32
   done
 done
