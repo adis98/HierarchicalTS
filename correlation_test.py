@@ -7,7 +7,7 @@ import warnings
 
 if __name__ == "__main__":
     fig, axs = plt.subplots(3, 4, sharex=True, sharey=True)
-    dataset = 'MetroTraffic'
+    dataset = 'BeijingAirQuality'
     preprocessor = Preprocessor(dataset, False)
     row = 0
     diffs = np.zeros((3, 4))
@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
             for trial in range(5):
                 hyacinth = pd.read_csv(
-                    f'generated/{dataset}/{task}/synth_hyacinth_pipeline_stride_8_trial_{trial}_cycStd.csv')
+                    f'generated/{dataset}/{task}/synth_wavestitch_pipeline_stride_8_trial_{trial}_cycStd_grad_simplecoeff.csv')
                 tsdiff = pd.read_csv(f'generated/{dataset}/{task}/synth_tsdiff_strength_0.5_trial_{trial}.csv')
                 timeweaver = pd.read_csv(f'generated/{dataset}/{task}/synth_timeweaver_trial_{trial}_cycStd.csv')
                 filt_hyacinth = hyacinth[non_hier_cols]
@@ -66,4 +66,4 @@ if __name__ == "__main__":
     axs[0, 0].set_ylabel('R', rotation=0, fontweight="bold")
     axs[1, 0].set_ylabel('I', rotation=0, fontweight="bold")
     axs[2, 0].set_ylabel('B', rotation=0, fontweight="bold")
-    plt.savefig(f'acfplot{dataset}.pdf', bbox_inches='tight')
+    plt.savefig(f'acfplot{dataset}_wavestitch_grad_simplecoeff.pdf', bbox_inches='tight')

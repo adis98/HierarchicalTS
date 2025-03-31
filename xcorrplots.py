@@ -4,7 +4,7 @@ from data_utils import Preprocessor
 import seaborn as sns
 
 if __name__ == "__main__":
-    dataset = "PanamaEnergy"
+    dataset = "BeijingAirQuality"
     preprocessor = Preprocessor(dataset, False)
     fig, axs = plt.subplots(3, 4)
     non_hier_cols = [col for col in preprocessor.df_orig.columns if col not in preprocessor.hierarchical_features_uncyclic and col != 'Unnamed: 0']
@@ -18,7 +18,7 @@ if __name__ == "__main__":
         timeweaver_corr = real_corr.copy()
         sns.heatmap(real_corr, cmap='coolwarm', square=True, cbar=False, ax=axs[row, 0])
         for trial in range(5):
-            hyacinth = pd.read_csv(f'generated/{dataset}/{task}/synth_hyacinth_pipeline_stride_8_trial_{trial}_cycStd.csv')[non_hier_cols]
+            hyacinth = pd.read_csv(f'generated/{dataset}/{task}/synth_wavestitch_pipeline_stride_8_trial_{trial}_cycStd_grad_simplecoeff.csv')[non_hier_cols]
             hyacinth_corr.iloc[:, :] = (hyacinth_corr * trial + hyacinth.corr())/(trial + 1)
 
             tsdiff = pd.read_csv(f'generated/{dataset}/{task}/synth_tsdiff_strength_0.5_trial_{trial}.csv')[non_hier_cols]
@@ -49,4 +49,4 @@ if __name__ == "__main__":
     axs[2, 2].set_xlabel('TSDiff', fontweight="bold")
     axs[2, 3].set_xlabel('TimeWeaver', fontweight="bold")
 
-    plt.savefig(f'crosscorrplot{dataset}.pdf', bbox_inches='tight')
+    plt.savefig(f'crosscorrplot{dataset}_wavestitch_grad_simplecoeff.pdf', bbox_inches='tight')
