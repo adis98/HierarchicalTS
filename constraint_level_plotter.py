@@ -1,31 +1,79 @@
+import matplotlib.pyplot as plt
 import pandas as pd
-from data_utils import Preprocessor
-from metasynth import metadataMask
-from matplotlib import pyplot as plt
+import numpy as np
 
-if __name__ == "__main__":
-    preprocessor = Preprocessor("AustraliaTourism", False)
-    df = preprocessor.df_cleaned
-    test_df = df.loc[preprocessor.train_indices[-32:] + preprocessor.test_indices]
-    test_df_with_hierarchy = preprocessor.cyclicDecode(test_df)
-    metadata = test_df_with_hierarchy[preprocessor.hierarchical_features_uncyclic]
+# Create synthetic data for 2 districts, 3 brands, and 12 months
+np.random.seed(42)
 
-    # Generate the binary mask for rows to synthesize
-    rows_to_synth = metadataMask(metadata, "F", "AustraliaTourism")
+# Months (1 to 12)
+months = np.arange(1, 14)
 
-    # Extract the 'Trips' data
-    trips_data = test_df_with_hierarchy['Trips']
+# Simulate seasonal sales data for 2 districts and 3 brands
+districts = ['District A', 'District B']
+brands = ['Brand X', 'Brand Y']
 
-    # Plot the full signal in gray
-    plt.plot(trips_data, color="black", label="Missing Data")
+# Create empty dataframe
+data = pd.DataFrame(index=months)
 
-    # Overlay only the available data points in blue (without continuity)
-    plt.plot(trips_data[~rows_to_synth], color="orange", label="Available Data")
-    plt.xticks([])
-    plt.xlabel("Time", fontsize=20)
-    # plt.xlabel("Ordered by: Year\u2192Month\u2192State\u2192Region\u2192Purpose ", fontsize=17)
-    plt.ylabel("Trips", fontsize=20)
-    plt.title("Constraint: (2016, *, *, *, Holiday)", fontsize=20)
-    plt.legend(fontsize=20)
-    # plt.show()
-    plt.savefig("ftype.pdf", bbox_inches="tight")
+# Base seasonal pattern (peaks around months 6-8, troughs around 12 and 3)
+seasonal_pattern = 15 * np.sin(2 * np.pi * months / 13) + 50
+
+# Add slight variations specific to each district and brand
+for district in districts:
+    for brand in brands:
+        # Each district/brand has its own level but follows the same seasonal pattern
+        level_shift = np.random.uniform(10, 30)  # Different base level for each
+        variation = np.random.normal(0, 3, 13)  # Small random noise for variation
+        data[f'{district} - {brand}'] = seasonal_pattern + level_shift + variation
+
+# Concatenate the data for all districts/brands along the x-axis (no gaps)
+full_data = pd.DataFrame()
+
+# Create an extended index for concatenation (12 months for each district/brand)
+extended_months = np.arange(1, 14)
+
+# Concatenate the data, keeping continuous flow with color changes
+color_map = plt.cm.Greens  # A color map for smooth transitions
+colors = [color_map(0.3 + i / (len(districts) * len(brands))) for i in range(len(districts) * len(brands))]
+
+# Initialize the figure
+plt.figure(figsize=(13, 6))
+
+# Initialize the starting x value (since months are the same for each, no gaps)
+start_month = 1
+
+# Define the specific month to highlight
+highlight_months = [4, 5, 6, 7, 17, 18, 19, 20, 21, 22, 23, 24, 25, 40, 44, 48]
+# Loop through columns (sales data for each district and brand)
+for idx, district in enumerate(districts):
+    for j, brand in enumerate(brands):
+        # Create a shifted x-axis (just stack them)
+        x_values = np.arange(start_month, start_month + len(months))
+
+        # Plot the line and fill the area
+        plt.plot(x_values, data[f'{district} - {brand}'], label=f'{district} - {brand}',
+                 color=colors[idx * len(brands) + j])
+        plt.fill_between(x_values, data[f'{district} - {brand}'], color=colors[idx * len(brands) + j], alpha=0.3)
+
+        # Highlight the specific month (highlight the area for the given month)
+        for month in highlight_months:
+            if month in x_values:
+                month_idx = np.where(x_values == month)[0][0]  # Find the index of the specified month
+                plt.fill_between(x_values[month_idx:month_idx+2], data[f'{district} - {brand}'][month_idx:month_idx+2], color="black",
+                            alpha=0.8)
+        #
+        # highlight_month += 12
+        # Update start_month to prevent overlap (shift for next brand/district)
+        start_month += len(months)
+
+# Customize the plot
+plt.yticks([])
+plt.xticks([])
+# plt.xlabel('Month (Across All Districts and Brands)')
+# plt.ylabel('Sales/Revenue')
+# plt.title(f'Sequential Sales/Revenue for Districts and Brands with Highlighted Month {highlight_month}')
+# plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+
+plt.tight_layout()  # To avoid clipping the legend
+plt.show()
+
