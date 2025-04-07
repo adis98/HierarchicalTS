@@ -54,22 +54,29 @@ if __name__=="__main__":
             x_values = np.arange(start_month, start_month + len(months))
 
             # Plot the line and fill the area
-            plt.plot(x_values, data[f'{district} - {brand}'], label=f'{district} - {brand}',
+            plt.plot(x_values, data[f'{district} - {brand}'],
                      color=colors[idx * len(brands) + j])
             plt.fill_between(x_values, data[f'{district} - {brand}'], color=colors[idx * len(brands) + j], alpha=0.3)
 
             # Highlight the specific month (highlight the area for the given month)
             for month in highlight_months:
                 if month in x_values:
+                    lab = None
                     if month < 27:
                         clr = "black"
-                        ha = '/'
+                        ha = ''
+
                     else:
-                        clr = "darkslategrey"
-                        ha = '*'
+                        clr = "darkred"
+                        ha = '/'
+
+                    if month == 14:
+                        lab = "coarse-grained"
+                    elif month == 34:
+                        lab = "fine-grained"
                     month_idx = np.where(x_values == month)[0][0]  # Find the index of the specified month
                     plt.fill_between(x_values[month_idx:month_idx+2], data[f'{district} - {brand}'][month_idx:month_idx+2], color=clr,
-                                alpha=0.7, hatch=ha)
+                                alpha=0.8, hatch=ha, label=lab)
             #
             # highlight_month += 12
             # Update start_month to prevent overlap (shift for next brand/district)
@@ -78,6 +85,7 @@ if __name__=="__main__":
     # Customize the plot
     plt.yticks([])
     plt.xticks([])
+    # plt.legend()
     # plt.xlabel('Month (Across All Districts and Brands)')
     # plt.ylabel('Sales/Revenue')
     # plt.title(f'Sequential Sales/Revenue for Districts and Brands with Highlighted Month {highlight_month}')
