@@ -15,16 +15,12 @@ do
       for s in "${options_stride[@]}"
       do
         if [[ "$encoding" == "std" ]]; then
-          #python3.12 synthesis_hyacinth_pipeline.py -d $dataset -synth_mask $synth_mask -stride $s
           python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride $s
         elif [[ "$encoding" == "prop" ]]; then
-          #python3.12 synthesis_hyacinth_pipeline.py -d $dataset -synth_mask $synth_mask -propCycEnc True -stride $s
           python3.12 synthesis_wavestitch_pipeline_strided_preconditioning.py -d $dataset -synth_mask $synth_mask -stride $s -propCycEnc True
         elif [[ "$encoding" == "onehot" ]]; then
-          #python3.12 synthesis_hyacinth_onehot.py -d $dataset -synth_mask $synth_mask -stride $s
           python3.12 synthesis_wavestitch_pipeline_strided_preconditioning_onehot.py -d $dataset -synth_mask $synth_mask -stride $s
         elif [[ "$encoding" == "ordinal" ]]; then
-          #python3.12 synthesis_hyacinth_ordinal.py -d $dataset -synth_mask $synth_mask -stride $s
           python3.12 synthesis_wavestitch_pipeline_strided_preconditioning_ordinal.py -d $dataset -synth_mask $synth_mask -stride $s
         fi
       done
