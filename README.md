@@ -32,10 +32,10 @@
 
 - **generated/**  
   Directory for storing generated data during experiments  
-  - **datasetname/**  
-    - **c/** (Coarse-grained tasks - Root-level data)  
-    - **m/** (Medium-grained tasks - Intermediate-level data)  
-    - **f/** (Fine-grained tasks - Bottom-level data)
+  - **[dataset name]/**  
+    - **c/** (Coarse-grained tasks - Root-level conditions)  
+    - **m/** (Medium-grained tasks - Intermediate-level conditions)  
+    - **f/** (Fine-grained tasks - Bottom-level conditions)
 
 - **saved_models/**  
   Directory where trained models are saved after running training scripts
