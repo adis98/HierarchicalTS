@@ -11,7 +11,7 @@ if __name__ == "__main__":
     for dataset in datasets:
         preprocessor = Preprocessor(dataset, False)
         for level in levels:
-            for method in ["TimeGAN", "TimeWeaver", "TSDiff-0", "TSDiff-0.5", "TSDiff-1.0", "TSDiff-2.0", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
+            for method in ["TimeGAN", "SSSD", "TimeAutoDiff", "TimeWeaver", "TSDiff-0", "TSDiff-0.5", "TSDiff-1.0", "TSDiff-2.0", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
                 df_real = pd.read_csv(f"generated/{dataset}/{level}/real.csv").drop(columns=['Unnamed: 0'])
                 df_real_cleaned = preprocessor.cleanDataset(dataset, df_real)
                 non_hier_cols = [col for col in df_real_cleaned.columns if
@@ -34,6 +34,10 @@ if __name__ == "__main__":
                             f'generated/{dataset}/{level}/synth_timeweaver_trial_{trial}_cycStd.csv')
                     elif method == "TimeGAN":
                         df_synth = pd.read_csv(f'generated/{dataset}/{level}/synth_timegan_trial_{trial}_cycStd.csv')
+                    elif method == "SSSD":
+                        df_synth = pd.read_csv(f'generated/{dataset}/{level}/synth_sssd_signalconditioned_trial_{trial}.csv')
+                    elif method == 'TimeAutoDiff':
+                        df_synth = pd.read_csv(f'generated/{dataset}/{level}/synth_timeautodiff_trial_{trial}.csv')
 
                     df_synth = df_synth.drop(columns=['Unnamed: 0'])
 
@@ -53,7 +57,7 @@ if __name__ == "__main__":
             path = "experiments/bigtable/"
             if not os.path.exists(path):
                 os.makedirs(path)
-            final_path = os.path.join(path, "bigtable_wavestitch_grad_simplecoeff.csv")
+            final_path = os.path.join(path, "bigtable_wavestitch_grad_revision.csv")
             bigtable.to_csv(final_path)
 
 

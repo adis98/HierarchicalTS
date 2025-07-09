@@ -65,7 +65,7 @@ if __name__=="__main__":
                         clr = "black"
                         ha = '/'
                     else:
-                        clr = "darkslategrey"
+                        clr = "darkred"
                         ha = '*'
                     month_idx = np.where(x_values == month)[0][0]  # Find the index of the specified month
                     plt.fill_between(x_values[month_idx:month_idx+2], data[f'{district} - {brand}'][month_idx:month_idx+2], color=clr,

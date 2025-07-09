@@ -10,7 +10,7 @@ if __name__ == "__main__":
     for dataset in ["AustraliaTourism", "MetroTraffic", "RossmanSales", "BeijingAirQuality", "PanamaEnergy"]:
         preprocessor = Preprocessor(dataset, False)
         for method in ["timegan", "timeweaver", "tsdiff-0.0", "tsdiff-0.5", 'tsdiff-1.0', 'tsdiff-2.0', 'algo-1',
-                       'algo-8', 'algo-16', 'algo-32']:
+                       'algo-8', 'algo-16', 'algo-32', 'sssd', 'timeautodiff']:
             for mask in ['C', 'M', 'F']:
                 real = pd.read_csv(f'generated/{dataset}/{mask}/real.csv')
                 non_hier_cols = [col for col in real.columns if
@@ -28,6 +28,10 @@ if __name__ == "__main__":
                         strength = method.split('-')[1]
                         data = pd.read_csv(
                             f'generated/{dataset}/{mask}/synth_tsdiff_strength_{strength}_trial_{trial}.csv')
+                    elif "sssd" in method:
+                        data = pd.read_csv(f'generated/{dataset}/{mask}/synth_sssd_signalconditioned_trial_{trial}.csv')
+                    elif 'timeautodiff' in method:
+                        data = pd.read_csv(f'generated/{dataset}/{mask}/synth_timeautodiff_trial_{trial}.csv')
                     else:
                         stride = method.split('-')[1]
                         data = pd.read_csv(
@@ -48,6 +52,6 @@ if __name__ == "__main__":
     path = "experiments/xcorrdtable/"
     if not os.path.exists(path):
         os.makedirs(path)
-    final_path = os.path.join(path, "xcorrdtable_wavestitch_grad_simplecoeff.csv")
+    final_path = os.path.join(path, "xcorrdtable_wavestitch_grad_revision.csv")
     xcorrdtable.to_csv(final_path)
 

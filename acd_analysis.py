@@ -9,7 +9,7 @@ if __name__ == "__main__":
         columns=['Dataset', 'Method', 'Level', 'Avg. ACD', 'Std. ACD'])
     for dataset in ["MetroTraffic", "RossmanSales", "BeijingAirQuality", "AustraliaTourism", "PanamaEnergy"]:
         preprocessor = Preprocessor(dataset, False)
-        for method in ['algo-8', 'algo-16', 'algo-32', 'algo-1', "timegan", "timeweaver", "tsdiff-0.5"]:
+        for method in ['algo-8', 'algo-16', 'algo-32', 'algo-1', "timegan", "timeweaver", "tsdiff-0.5", "sssd", 'timeautodiff']:
             for mask in ['C', 'M', 'F']:
                 real = pd.read_csv(f'generated/{dataset}/{mask}/real.csv')
                 non_hier_cols = [col for col in real.columns if
@@ -34,6 +34,10 @@ if __name__ == "__main__":
                     elif "tsdiff" in method:
                         strength = method.split('-')[1]
                         data = pd.read_csv(f'generated/{dataset}/{mask}/synth_tsdiff_strength_{strength}_trial_{trial}.csv')
+                    elif "sssd" in method:
+                        data = pd.read_csv(f'generated/{dataset}/{mask}/synth_sssd_signalconditioned_trial_{trial}.csv')
+                    elif 'timeautodiff' in method:
+                        data = pd.read_csv(f'generated/{dataset}/{mask}/synth_timeautodiff_trial_{trial}.csv')
                     else:
                         stride = method.split('-')[1]
                         data = pd.read_csv(f'generated/{dataset}/{mask}/synth_wavestitch_pipeline_stride_{stride}_trial_{trial}_cycStd_grad_simplecoeff.csv')
@@ -65,7 +69,7 @@ if __name__ == "__main__":
     path = "experiments/acdtable/"
     if not os.path.exists(path):
         os.makedirs(path)
-    final_path = os.path.join(path, "acdtable_wavestitch_grad_simplecoeff.csv")
+    final_path = os.path.join(path, "acdtable_wavestitch_grad_revision.csv")
     acdtable.to_csv(final_path)
 
 

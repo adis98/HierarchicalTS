@@ -8,7 +8,7 @@ import numpy as np
 import torch.optim as optim
 from torch import nn, from_numpy
 from torch.utils.data import Dataset, DataLoader
-from TSImputers.SSSDS4Imputer import SSSDS4Imputer, SSSDS4Weaver
+from TSImputers.SSSDS4Imputer import SSSDS4Imputer, SSSDS4Weaver, SSSDS4ImputerClassic
 from TSImputers.TimeGAN import TimeGAN
 
 
@@ -25,8 +25,16 @@ class MyDataset(Dataset):
 
 def fetchModel(in_features, out_features, args):
     model = None
+
     if args.backbone.lower() == 's4':
         model = SSSDS4Imputer(in_features, args.res_channels, args.skip_channels,
+                              out_features, args.num_res_layers, args.diff_step_embed_in,
+                              args.diff_step_embed_mid, args.diff_step_embed_out,
+                              args.s4_lmax, args.s4_dstate, args.s4_dropout,
+                              args.s4_bidirectional, args.s4_layernorm)
+
+    elif args.backbone.lower() == 's4classic':
+        model = SSSDS4ImputerClassic(in_features, args.res_channels, args.skip_channels,
                               out_features, args.num_res_layers, args.diff_step_embed_in,
                               args.diff_step_embed_mid, args.diff_step_embed_out,
                               args.s4_lmax, args.s4_dstate, args.s4_dropout,

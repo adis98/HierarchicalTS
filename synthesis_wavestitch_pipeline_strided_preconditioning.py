@@ -11,6 +11,7 @@ from metasynth import metadataMask
 from timeit import default_timer as timer
 from matplotlib import pyplot as plt
 from copy import deepcopy
+import torch.nn.functional as F
 
 
 def decimal_places(series):
@@ -115,6 +116,7 @@ if __name__ == "__main__":
     model.eval()
     num_ops = 0  # start measuring the number of compute steps for the whole generation time
     exec_times = []
+    # mses = []
     for trial in range(args.n_trials):
         start = timer()
         with torch.no_grad():
@@ -145,7 +147,7 @@ if __name__ == "__main__":
 
                     with torch.enable_grad():
                         epsilon_pred = model(x, times).permute((0, 2, 1))
-                        grad_xt = torch.autograd.grad(epsilon_pred, x, grad_outputs=torch.ones_like(epsilon_pred), retain_graph=True)[0]
+                        # grad_xt = torch.autograd.grad(epsilon_pred, x, grad_outputs=torch.ones_like(epsilon_pred), retain_graph=True)[0]
                         if step > 0:
                             vari = beta_t * ((1 - alpha_bar_t_1) / (1 - alpha_bar_t)) * torch.normal(0, 1,
                                                                                                      size=epsilon_pred.shape).to(
@@ -164,9 +166,29 @@ if __name__ == "__main__":
                         rolled_x = normal_denoising.roll(1, 0)
                         rolled_x[0, args.stride:, :] = normal_denoising[0, :(args.window_size - args.stride), :]
                         # loss2 = 0.0
-                        # loss1 = torch.sum((normal_denoising[:, :(args.window_size - args.stride), non_hier_cols] - rolled_x[:, args.stride:args.window_size, non_hier_cols])**2, dim=(1, 2))
-                        loss2 = torch.sum(~mask_expanded[:, :, non_hier_cols] * (x[:, :, non_hier_cols] - test_batch[:, :, non_hier_cols])**2, dim=(1, 2))
-                        loss1 = 0.0
+                        """MSE LOSS"""
+                        loss1 = torch.sum((normal_denoising[:, :(args.window_size - args.stride), non_hier_cols] - rolled_x[:, args.stride:args.window_size, non_hier_cols])**2, dim=(1, 2))
+                        """MAE LOSS"""
+                        # loss1 = torch.sum(torch.abs(normal_denoising[:, :(args.window_size - args.stride), non_hier_cols] - rolled_x[:, args.stride:args.window_size, non_hier_cols]), dim=(1, 2))
+                        """COSINE SIMILARITY"""
+                        # dot = torch.sum(normal_denoising[:, :(args.window_size - args.stride), non_hier_cols] * rolled_x[:, args.stride:args.window_size, non_hier_cols], dim=1)
+                        # unorm = torch.norm(normal_denoising[:, :(args.window_size - args.stride), non_hier_cols], p=2, dim=1)
+                        # vnorm = torch.norm(rolled_x[:, args.stride:args.window_size, non_hier_cols], p=2, dim=1)
+                        # cosinesim = dot/(unorm*vnorm + 1e-8)
+                        # loss1 = 1 - cosinesim.mean(dim=1)
+
+                        """TEMPORAL CORRELATION"""
+                        # umean = torch.mean(normal_denoising[:, :(args.window_size - args.stride), non_hier_cols], dim=1, keepdim=True)
+                        # vmean = torch.mean(rolled_x[:, args.stride:args.window_size, non_hier_cols], dim=1, keepdim=True)
+                        # ucentred = normal_denoising[:, :(args.window_size - args.stride), non_hier_cols] - umean
+                        # vcentred = rolled_x[:, args.stride:args.window_size, non_hier_cols] - vmean
+                        # num = torch.sum(ucentred*vcentred, dim=1)
+                        # den = torch.sqrt(torch.sum(ucentred**2, dim=1) * torch.sum(vcentred**2, dim=1) + 1e-8)
+                        # score = num/den
+                        # loss1 = 1 - score.mean(dim=1)
+
+                        loss2 = torch.sum(~mask_expanded[:, :, non_hier_cols] * ((x[:, :, non_hier_cols]-torch.sqrt(1-alpha_bar_t)*epsilon_pred)/(torch.sqrt(alpha_bar_t)) - test_batch[:, :, non_hier_cols])**2, dim=(1, 2))
+                        # loss1 = 0.0
                         loss = loss1 + loss2
                         # print(torch.sum(loss.cpu()))
                         grad = torch.autograd.grad(loss, x, grad_outputs=torch.ones_like(loss))[0]
@@ -213,6 +235,14 @@ if __name__ == "__main__":
         synth_df_reconverted_selected = synth_df_reconverted[rows_to_synth_reset]
         synth_df_reconverted_selected = synth_df_reconverted_selected.round(decimal_accuracy)
         synth_df_reconverted_selected = synth_df_reconverted_selected.reset_index(drop=True)
+    #     real_df_cleaned = preprocessor.cleanDataset(args.dataset, real_df_reconverted)
+    #     synth_df_cleaned = preprocessor.cleanDataset(args.dataset, synth_df_reconverted_selected)
+    #     nhc = [c for c in real_df_cleaned.columns if
+    #                      c not in preprocessor.hierarchical_features_cyclic]
+    #     MSE = ((synth_df_cleaned[nhc] - real_df_cleaned[nhc]) ** 2).mean().mean()
+    #     mses.append(MSE)
+    #     print(trial)
+    # print(np.mean(np.array(mses)))
         path = f'generated/{args.dataset}/{args.synth_mask}/'
         if not os.path.exists(path):
             os.makedirs(path)
@@ -222,18 +252,18 @@ if __name__ == "__main__":
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
         if args.propCycEnc:
             synth_df_reconverted_selected.to_csv(
-                f'{path}synth_wavestitch_pipeline_stride_{args.stride}_trial_{trial}_cycProp_grad_simplecoeff_nostitch.csv')
+                f'{path}synth_wavestitch_pipeline_stride_{args.stride}_trial_{trial}_cycProp_grad_correction.csv')
             if trial == 0:
-                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycProp_grad_simplecoeff_nostitch.txt', 'w') as file:
+                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycProp_grad_correction.txt', 'w') as file:
                     file.write(str(num_ops))
         else:
             synth_df_reconverted_selected.to_csv(
-                f'{path}synth_wavestitch_pipeline_stride_{args.stride}_trial_{trial}_cycStd_grad_simplecoeff_nostitch.csv')
+                f'{path}synth_wavestitch_pipeline_stride_{args.stride}_trial_{trial}_cycStd_grad_correction.csv')
             if trial == 0:
-                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycStd_grad_simplecoeff_nostitch.txt', 'w') as file:
+                with open(f'{path}denoiser_calls_pipeline_stride_{args.stride}_cycStd_grad_correction.txt', 'w') as file:
                     file.write(str(num_ops))
 
-    with open(f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_pipeline_stride_{args.stride}_cycStd_grad_simplecoeff_nostitch.txt',
+    with open(f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_pipeline_stride_{args.stride}_cycStd_grad_correction.txt',
               'a') as file:
         arr_time = np.array(exec_times)
         file.write('\n' + str(np.mean(arr_time)) + '\n')

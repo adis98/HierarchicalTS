@@ -103,6 +103,70 @@ class Residual_block(nn.Module):
         return (x + res) * math.sqrt(0.5), skip  # normalize for training stability
 
 
+# this is the classic SSSD implementation which uses conditions in the input
+class Residual_block_SSSD(nn.Module):
+    def __init__(self, res_channels, skip_channels,
+                 diffusion_step_embed_dim_out, in_channels,
+                 s4_lmax,
+                 s4_d_state,
+                 s4_dropout,
+                 s4_bidirectional,
+                 s4_layernorm):
+        super(Residual_block_SSSD, self).__init__()
+        self.res_channels = res_channels
+
+        self.fc_t = nn.Linear(diffusion_step_embed_dim_out, self.res_channels)
+
+        self.S41 = S4Layer(features=2 * self.res_channels,
+                           lmax=s4_lmax,
+                           N=s4_d_state,
+                           dropout=s4_dropout,
+                           bidirectional=s4_bidirectional,
+                           layer_norm=s4_layernorm)
+
+        self.conv_layer = Conv(self.res_channels, 2 * self.res_channels, kernel_size=3)
+
+        self.S42 = S4Layer(features=2 * self.res_channels,
+                           lmax=s4_lmax,
+                           N=s4_d_state,
+                           dropout=s4_dropout,
+                           bidirectional=s4_bidirectional,
+                           layer_norm=s4_layernorm)
+
+        self.cond_conv = Conv(2 * in_channels, 2 * self.res_channels, kernel_size=1)
+
+        self.res_conv = nn.Conv1d(res_channels, res_channels, kernel_size=1)
+        self.res_conv = nn.utils.parametrizations.weight_norm(self.res_conv)
+        nn.init.kaiming_normal_(self.res_conv.weight)
+
+        self.skip_conv = nn.Conv1d(res_channels, skip_channels, kernel_size=1)
+        self.skip_conv = nn.utils.parametrizations.weight_norm(self.skip_conv)
+        nn.init.kaiming_normal_(self.skip_conv.weight)
+
+    def forward(self, input_data):
+        x, cond, diffusion_step_embed = input_data
+        h = x
+        B, C, L = x.shape
+        assert C == self.res_channels
+
+        part_t = self.fc_t(diffusion_step_embed)
+        part_t = part_t.view([B, self.res_channels, 1])
+        h = h + part_t
+
+        h = self.conv_layer(h)
+        h = self.S41(h.permute(2, 0, 1)).permute(1, 2, 0)
+
+        assert cond is not None
+        cond = self.cond_conv(cond)
+        h += cond
+        h = self.S42(h.permute(2, 0, 1)).permute(1, 2, 0)
+        out = torch.tanh(h[:, :self.res_channels, :]) * torch.sigmoid(h[:, self.res_channels:, :])
+        res = self.res_conv(out)
+        assert x.shape == res.shape
+        skip = self.skip_conv(out)
+        return (x + res) * math.sqrt(0.5), skip  # normalize for training stability
+
+
 class Residual_group(nn.Module):
     def __init__(self, res_channels, skip_channels, num_res_layers,
                  diffusion_step_embed_dim_in,
@@ -149,6 +213,51 @@ class Residual_group(nn.Module):
         return skip * math.sqrt(1.0 / self.num_res_layers)
 
 
+# this is the classic SSSD implementation which uses conditional info as inputs
+class Residual_group_SSSD(nn.Module):
+    def __init__(self, res_channels, skip_channels, num_res_layers,
+                 diffusion_step_embed_dim_in,
+                 diffusion_step_embed_dim_mid,
+                 diffusion_step_embed_dim_out,
+                 in_channels,
+                 s4_lmax,
+                 s4_d_state,
+                 s4_dropout,
+                 s4_bidirectional,
+                 s4_layernorm):
+        super(Residual_group_SSSD, self).__init__()
+        self.num_res_layers = num_res_layers
+        self.diffusion_step_embed_dim_in = diffusion_step_embed_dim_in
+
+        self.fc_t1 = nn.Linear(diffusion_step_embed_dim_in, diffusion_step_embed_dim_mid)
+        self.fc_t2 = nn.Linear(diffusion_step_embed_dim_mid, diffusion_step_embed_dim_out)
+
+        self.residual_blocks = nn.ModuleList()
+        for n in range(self.num_res_layers):
+            self.residual_blocks.append(Residual_block_SSSD(res_channels, skip_channels,
+                                                            diffusion_step_embed_dim_out=diffusion_step_embed_dim_out,
+                                                            in_channels=in_channels,
+                                                            s4_lmax=s4_lmax,
+                                                            s4_d_state=s4_d_state,
+                                                            s4_dropout=s4_dropout,
+                                                            s4_bidirectional=s4_bidirectional,
+                                                            s4_layernorm=s4_layernorm))
+
+    def forward(self, input_data):
+        noise, conditional, diffusion_steps = input_data
+        diffusion_step_embed = calc_diffusion_step_embedding(diffusion_steps, self.diffusion_step_embed_dim_in)
+        diffusion_step_embed = swish(self.fc_t1(diffusion_step_embed))
+        diffusion_step_embed = swish(self.fc_t2(diffusion_step_embed))
+
+        h = noise
+        skip = 0
+        for n in range(self.num_res_layers):
+            h, skip_n = self.residual_blocks[n]((h, conditional, diffusion_step_embed))
+            skip += skip_n
+
+        return skip * math.sqrt(1.0 / self.num_res_layers)
+
+
 class SSSDS4Imputer(nn.Module):
     def __init__(self, in_channels, res_channels, skip_channels, out_channels,
                  num_res_layers,
@@ -184,17 +293,54 @@ class SSSDS4Imputer(nn.Module):
     def forward(self, input_data, timesteps):
         # noise, conditional, mask, diffusion_steps = input_data
         noised_data, diffusion_steps = input_data.permute((0, 2, 1)), timesteps
-
-        # conditional = conditional * mask
-        # conditional = torch.cat([conditional, mask.float()], dim=1)
-        #
-        # x = noise
-        # x = self.init_conv(x)
-        # x = self.residual_layer((x, conditional, diffusion_steps))
-        # y = self.final_conv(x)
         x = noised_data
         x = self.init_conv(x)
         x = self.residual_layer((x, diffusion_steps))
+        y = self.final_conv(x)
+        return y
+
+
+class SSSDS4ImputerClassic(nn.Module):
+    def __init__(self, in_channels, res_channels, skip_channels, out_channels,
+                 num_res_layers,
+                 diffusion_step_embed_dim_in,
+                 diffusion_step_embed_dim_mid,
+                 diffusion_step_embed_dim_out,
+                 s4_lmax,
+                 s4_d_state,
+                 s4_dropout,
+                 s4_bidirectional,
+                 s4_layernorm):
+        super(SSSDS4ImputerClassic, self).__init__()
+
+        self.init_conv = nn.Sequential(Conv(in_channels, res_channels, kernel_size=1), nn.ReLU())
+
+        self.residual_layer = Residual_group_SSSD(res_channels=res_channels,
+                                                  skip_channels=skip_channels,
+                                                  num_res_layers=num_res_layers,
+                                                  diffusion_step_embed_dim_in=diffusion_step_embed_dim_in,
+                                                  diffusion_step_embed_dim_mid=diffusion_step_embed_dim_mid,
+                                                  diffusion_step_embed_dim_out=diffusion_step_embed_dim_out,
+                                                  in_channels=in_channels,
+                                                  s4_lmax=s4_lmax,
+                                                  s4_d_state=s4_d_state,
+                                                  s4_dropout=s4_dropout,
+                                                  s4_bidirectional=s4_bidirectional,
+                                                  s4_layernorm=s4_layernorm)
+
+        self.final_conv = nn.Sequential(Conv(skip_channels, skip_channels, kernel_size=1),
+                                        nn.ReLU(),
+                                        ZeroConv1d(skip_channels, out_channels))
+
+    def forward(self, input_data, timesteps):
+        noise, conditional, mask = input_data
+        noised_data, diffusion_steps = noise.permute((0, 2, 1)), timesteps
+        conditional_data, mask_data = conditional.permute((0, 2, 1)), mask.permute((0, 2, 1))
+        conditional_data = conditional_data * (mask_data)
+        conditional_data = torch.cat([conditional_data, mask_data.float()], dim=1)
+        x = noised_data
+        x = self.init_conv(x)
+        x = self.residual_layer((x, conditional_data, diffusion_steps))
         y = self.final_conv(x)
         return y
 

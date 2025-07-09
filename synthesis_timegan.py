@@ -8,6 +8,7 @@ import pandas as pd
 import os
 from metasynth import metadataMask
 from data_utils import Preprocessor
+from timeit import default_timer as timer
 
 
 def decimal_places(series):
@@ -24,9 +25,7 @@ if __name__ == "__main__":
     parser.add_argument('-lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('-beta1', type=float, default=0.9, help='momentum term of adam')
     parser.add_argument('-num_layer', type=int, default=3, help='number of layers')
-    parser.add_argument('-epochs', type=int, default=1000, help='training epochs')
     parser.add_argument('-window_size', type=int, default=32, help='the size of the training windows')
-    parser.add_argument('-stride', type=int, default=1, help='the stride length to shift the training window by')
     parser.add_argument('-propCycEnc', type=bool, default=False)
     parser.add_argument('-synth_mask', type=str, required=True,
                         help="the hierarchy masking type, coarse (C), fine (F), mid (M)")
@@ -97,8 +96,9 @@ if __name__ == "__main__":
             param.copy_(saved_params[name])
             param.requires_grad = False
     model.eval()
-
+    exec_times = []
     for trial in range(args.n_trials):
+        start = timer()
         with torch.no_grad():
             synth_tensor = torch.empty(0, test_dataset.inputs.shape[2]).to(device)
             for idx, (test_batch, mask_batch) in enumerate(zip(test_dataloader, mask_dataloader)):
@@ -112,6 +112,9 @@ if __name__ == "__main__":
                 generated[:, :, non_hier_cols] = out_r
                 synth_tensor = torch.cat((synth_tensor, generated.view(-1, generated.shape[2])), dim=0)
 
+        end = timer()
+        diff = end - start
+        exec_times.append(diff)
         df_synthesized = pd.DataFrame(synth_tensor.cpu().numpy(), columns=df.columns)
         real_df_reconverted = preprocessor.rescale(real_df).reset_index(drop=True)
         real_df_reconverted = real_df_reconverted.round(decimal_accuracy)
@@ -128,7 +131,16 @@ if __name__ == "__main__":
         if not os.path.exists(f'{path}real.csv'):
             real_df_reconverted.to_csv(f'{path}real.csv')
         synth_df_reconverted_selected = synth_df_reconverted_selected[real_df_reconverted.columns]
+        """remember to uncomment the following lines in the committed version"""
         if args.propCycEnc:
             synth_df_reconverted_selected.to_csv(f'{path}synth_timegan_trial_{trial}_cycProp.csv')
         else:
             synth_df_reconverted_selected.to_csv(f'{path}synth_timegan_trial_{trial}_cycStd.csv')
+
+    with open(
+            f'generated/{args.dataset}/{args.synth_mask}/denoiser_calls_timegan_cycStd.txt',
+            'a') as file:
+        arr_time = np.array(exec_times)
+        file.write(str(1) + '\n')
+        file.write(str(np.mean(arr_time)) + '\n')
+        file.write(str(np.std(arr_time)))

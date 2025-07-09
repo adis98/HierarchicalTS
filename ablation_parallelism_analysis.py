@@ -8,7 +8,7 @@ if __name__ == "__main__":
         columns=['Dataset', 'Parallelism', 'Level', 'Queries', 'Avg. MSE', 'Std. MSE', "Avg. Time", "Std. Time"])
     for dataset in ["AustraliaTourism", "MetroTraffic", "BeijingAirQuality", "RossmanSales", "PanamaEnergy"]:
         preprocessor = Preprocessor(dataset, False)
-        for parallel in ["AR-8", "AR-16", "AR-32", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32"]:
+        for parallel in ["AR-8", "AR-16", "AR-32", "Pipe-1", "Pipe-8", "Pipe-16", "Pipe-32", "TimeGAN"]:
             for level in ["C", "M", "F"]:
                 df_real = pd.read_csv(f"generated/{dataset}/{level}/real.csv").drop(columns=['Unnamed: 0'])
                 df_real_cleaned = preprocessor.cleanDataset(dataset, df_real)
@@ -52,6 +52,15 @@ if __name__ == "__main__":
                             f'generated/{dataset}/{level}/synth_hyacinth_divide_and_conquer_trial_{trial}_cycStd.csv')
                         if trial == 0:
                             with open(f'generated/{dataset}/{level}/denoiser_calls_divide_and_conquer_cycStd.txt') as file:
+                                queries = int(file.readline())
+                                time = float(file.readline())
+                                std_time = float(file.readline())
+                    elif parallel == "TimeGAN":
+                        df_synth = pd.read_csv(
+                            f'generated/{dataset}/{level}/synth_timegan_trial_{trial}_cycStd.csv')
+                        if trial == 0:
+                            with open(
+                                    f'generated/{dataset}/{level}/denoiser_calls_timegan_cycStd.txt') as file:
                                 queries = int(file.readline())
                                 time = float(file.readline())
                                 std_time = float(file.readline())
@@ -112,5 +121,5 @@ if __name__ == "__main__":
     path = "experiments/ablations/parallelism/"
     if not os.path.exists(path):
         os.makedirs(path)
-    final_path = os.path.join(path, "ablation_parallelism_wavestitch_grad_simplecoeff.csv")
+    final_path = os.path.join(path, "ablation_parallelism_wavestitch_grad_revision.csv")
     ablation_data_parallelism.to_csv(final_path)
